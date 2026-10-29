@@ -66,6 +66,7 @@ select,input{background:var(--card);color:var(--fg);border:1px solid var(--line)
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}.seg button{border:0;background:var(--card);color:var(--fg);padding:4px 10px;cursor:pointer}.seg button.on{background:var(--acc);color:#fff}
 #canvasWrap{flex:1;position:relative;overflow:hidden;background:var(--card)}
 #canvas{width:100%;height:100%;cursor:grab;display:block}#canvas:active{cursor:grabbing}
+#axis{position:absolute;left:0;top:0;width:100%;height:24px;pointer-events:none;background:var(--card);border-bottom:1px solid var(--line);display:none}
 #legend{position:absolute;left:10px;bottom:8px;font-size:11px;color:var(--mut);background:var(--card);padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
 #zoom{position:absolute;right:10px;top:8px;display:flex;gap:4px}#zoom button{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;width:28px;height:28px;cursor:pointer}
 #side{width:330px;min-width:260px;border-left:1px solid var(--line);overflow:auto;padding:10px 12px;background:var(--card)}
@@ -88,7 +89,7 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
    <label><input type="checkbox" id="ext" checked> 범위 밖 출입 표시</label>
    <span class="mut" id="stat"></span>
   </div>
-  <div id="canvasWrap"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="canvasWrap"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg><svg id="axis" xmlns="http://www.w3.org/2000/svg"></svg>
    <div id="legend">상자 = 이름표(왼쪽 끝 = 시작일) · 상자 아래 회색 띠 = 실제 기간 · 회색 = 같은 줄 안 선행 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 범위 밖 · 누름 = 앞(보라)/뒤(초록) 강조 · 두 번 누름 = 안으로</div>
    <div id="zoom"><button id="zi" title="확대">+</button><button id="zo" title="축소">−</button><button id="zf" title="맞춤">⌂</button></div>
   </div>
@@ -184,7 +185,7 @@ function draw(){build();const nodes=[...G.nodes.values()],exts=[...G.ext.values(
  const chk=$("chk").checked;let s=`<defs><marker id="ar" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="context-stroke"/></marker></defs>`;
  for(const b of laneBands)s+=`<rect x="0" y="${b.y}" width="${W}" height="${b.h}" fill="${b.i%2?"rgba(127,127,127,.06)":"transparent"}"/><text x="8" y="${b.y+16}" font-size="12" font-weight="bold" fill="${b.color}">${esc(b.name)}</text>`;
  if(laneBands.length&&laneBands.labelW)s+=`<line x1="${laneBands.labelW-2}" y1="0" x2="${laneBands.labelW-2}" y2="${H}" stroke="var(--line)"/>`;
- if(axis){for(const t of axis.ticks)s+=`<line x1="${t.x}" y1="${axis.y}" x2="${t.x}" y2="${H}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${t.x+3}" y="${axis.y-4}" font-size="11" fill="var(--mut)">${t.label}</text>`}
+ AXIS=axis;if(axis){for(const t of axis.ticks)s+=`<line x1="${t.x}" y1="${axis.y}" x2="${t.x}" y2="${H}" stroke="var(--line)" stroke-dasharray="2 4"/>`}   // 연도 글자는 위에 고정된 #axis 에
  const sel=S.sel,upS=new Set(),dnS=new Set();
  if(sel!=null){const adjU=new Map(),adjD=new Map();for(const e of G.edges.values()){(adjU.get(e.b)||adjU.set(e.b,[]).get(e.b)).push(e.a);(adjD.get(e.a)||adjD.set(e.a,[]).get(e.a)).push(e.b)}
   const bfs=(start,adj,out)=>{const st=[start];while(st.length){const v=st.pop();for(const w of (adj.get(v)||[]))if(!out.has(w)&&w!==start){out.add(w);st.push(w)}}};bfs(sel,adjU,upS);bfs(sel,adjD,dnS)}
@@ -221,7 +222,8 @@ function layoutTime(nodes,exts,pos){const dated=nodes.filter(n=>n.t.st&&n.t.fi);
  const LABELW=Math.max(60,...G.lanes.map(l=>tw(T.get(l).name)+22)),INW=exts.some(x=>x.ext==="in")?236:0,RIGHT=exts.some(x=>x.ext==="out")?240:40;
  const LEFT=LABELW+INW+12,span=Math.max(30,d1-d0),pxPerDay=Math.max(0.6,Math.min(6,1400/span)),TOP=34;
  const X=d=>LEFT+(d-d0)*pxPerDay;let y=TOP;const laneBands=[];const groups=G.lanes.length?G.lanes.map(l=>nodes.filter(n=>n.lane===l)):[nodes];
- groups.forEach((grp,gi)=>{if(!grp.length)return;const rows=[];     // 빈 줄(거르기로 비었거나 잎 없음)은 그리지 않는다const sorted=grp.slice().sort((a,b)=>(a.t.st?dateNum(a.t.st):-1e9)-(b.t.st?dateNum(b.t.st):-1e9));const y0=y;
+ groups.forEach((grp,gi)=>{if(!grp.length)return;                     // 빈 줄(거르기로 비었거나 잎 없음)은 그리지 않는다
+  const rows=[],sorted=grp.slice().sort((a,b)=>(a.t.st?dateNum(a.t.st):-1e9)-(b.t.st?dateNum(b.t.st):-1e9)),y0=y;
   for(const n of sorted){const has=!!(n.t.st&&n.t.fi);const x=has?X(dateNum(n.t.st)):LEFT,durPx=has?Math.max(6,(dateNum(n.t.fi)-dateNum(n.t.st)+1)*pxPerDay):0;
    // 상자 = 이름표 (글자는 늘 안에). 실제 기간은 상자 아래 띠(durPx)로 — 기간이 짧으면 상자가 띠보다 넓다
    const sub=has?`${n.t.st} ~ ${n.t.fi} · ${n.t.dur??"-"}일${n.leaves>1?" · 하위 "+n.leaves:""}`:"날짜 없음";
@@ -258,7 +260,11 @@ function layoutFlow(nodes,exts,pos){const ids=[...nodes.map(n=>n.id),...exts.map
  cols.forEach((c,li)=>{let y=30,prevLane=null;for(const v of c){const b=boxes.get(v),n=G.nodes.get(v);if(n&&prevLane!=null&&n.lane!==prevLane)y+=16;if(n)prevLane=n.lane;pos.set(v,{x:colX[li],y,w:b.w,h:b.h,lines:b.lines,tx:colX[li]+(n&&G.lanes.length?12:8),sub:b.sub});y+=b.h+12}H=Math.max(H,y)});
  return{W,H:H+20,back}}
 // ---- 확대·이동 ----
-function setVB(){svg.setAttribute("viewBox",`${VB.x} ${VB.y} ${VB.w} ${VB.h}`)}
+let AXIS=null;
+function setVB(){svg.setAttribute("viewBox",`${VB.x} ${VB.y} ${VB.w} ${VB.h}`);updateAxis()}
+// 시간 눈금은 엑셀 '틀 고정' 처럼 위에 붙어 가로 이동·확대만 따라간다
+function updateAxis(){const ax=$("axis");if(!AXIS){ax.style.display="none";return}ax.style.display="block";const r=svg.getBoundingClientRect(),k=VB.w/r.width,h=24*k;
+ ax.setAttribute("viewBox",`${VB.x} 0 ${VB.w} ${h}`);let s="";for(const t of AXIS.ticks){s+=`<line x1="${t.x}" y1="${h*0.55}" x2="${t.x}" y2="${h}" stroke="var(--mut)" stroke-width="${k}"/><text x="${t.x+3*k}" y="${h*0.62}" font-size="${11*k}" fill="var(--mut)">${t.label}</text>`}ax.innerHTML=s}
 function fit(){const r=svg.getBoundingClientRect(),sc=Math.max(drawn.w/r.width,drawn.h/r.height,0.5);VB={x:0,y:0,w:r.width*sc,h:r.height*sc};if(sc<1){VB={x:0,y:0,w:r.width,h:r.height}}setVB()}
 function zoom(f,cx,cy){const r=svg.getBoundingClientRect();cx=cx??r.width/2;cy=cy??r.height/2;const px=VB.x+cx/r.width*VB.w,py=VB.y+cy/r.height*VB.h;VB.w*=f;VB.h*=f;VB.x=px-cx/r.width*VB.w;VB.y=py-cy/r.height*VB.h;setVB()}
 svg.addEventListener("wheel",ev=>{ev.preventDefault();const r=svg.getBoundingClientRect();zoom(ev.deltaY>0?1.15:1/1.15,ev.clientX-r.left,ev.clientY-r.top)},{passive:false});
