@@ -131,6 +131,8 @@ def test_small_outputs(small, tmp_path):
     assert wb.sheetnames == ["요약", "검사", "업무", "분야 행렬", "분야 간 연결", "가장 긴 사슬"]
     text = html.read_text(encoding="utf-8")
     assert "가나다" not in text and "<script src" not in text and "http" not in text.split("<script>")[1].replace("http://www.w3.org/2000/svg", "")
+    for piece in ('id="tree"', 'id="grain"', 'data-v="time"', 'data-v="flow"', 'id="crumb"', 'id="side"', '"source":"small.xlsx"'):
+        assert piece in text, piece
 
 
 def test_header_missing(tmp_path):
