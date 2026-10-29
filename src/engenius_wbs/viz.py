@@ -43,8 +43,8 @@ TEMPLATE = r"""<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>__TITLE__</title>
 <style>
-:root{--bg:#fafafa;--fg:#1f2328;--mut:#6b7280;--line:#d0d7de;--card:#fff;--acc:#2563eb;--hot:#dc2626;--hand:#d97706;--sel:#fde68a;--up:#7c3aed;--dn:#059669}
-@media (prefers-color-scheme:dark){:root{--bg:#16181d;--fg:#e6e6e6;--mut:#9aa0a6;--line:#363b44;--card:#1f2228;--acc:#60a5fa;--hot:#f87171;--hand:#fbbf24;--sel:#7c5e10;--up:#a78bfa;--dn:#34d399}}
+:root{--bg:#fafafa;--fg:#1f2328;--mut:#6b7280;--line:#d0d7de;--card:#fff;--acc:#2563eb;--hot:#dc2626;--hand:#d97706;--sel:#fde68a;--up:#7c3aed;--dn:#059669;--band:#b0b4ba}
+@media (prefers-color-scheme:dark){:root{--bg:#16181d;--fg:#e6e6e6;--mut:#9aa0a6;--line:#363b44;--card:#1f2228;--acc:#60a5fa;--hot:#f87171;--hand:#fbbf24;--sel:#7c5e10;--up:#a78bfa;--dn:#34d399;--band:#c9ccd1}}
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 "Malgun Gothic","Apple SD Gothic Neo",sans-serif;display:flex;flex-direction:column}
 header{padding:8px 14px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
 header h1{font-size:16px;margin:0}.mut{color:var(--mut);font-size:12px}
@@ -56,7 +56,7 @@ section{display:none;flex:1;min-height:0}section.on{display:flex}
 #tree .bar{padding:6px 8px;border-bottom:1px solid var(--line)}#tree input{width:100%}
 #treeBody{flex:1;overflow:auto;padding:4px 0}
 .tn{display:flex;align-items:center;gap:4px;padding:2px 6px;cursor:pointer;white-space:nowrap}.tn:hover{background:var(--bg)}.tn.cur{background:var(--sel)}
-.tn .tg{width:14px;color:var(--mut);text-align:center;flex:none}.tn .nm{overflow:hidden;text-overflow:ellipsis}.tn .ct{color:var(--mut);font-size:11px;margin-left:auto;padding-left:6px}
+.tn .tg{width:14px;color:var(--mut);text-align:center;flex:none}.tn .lv{color:var(--mut);font-size:10.5px;flex:none;width:26px}.tn .nm{overflow:hidden;text-overflow:ellipsis}.tn .ct{color:var(--mut);font-size:11px;margin-left:auto;padding-left:6px}
 #hits div{padding:3px 8px;cursor:pointer;border-bottom:1px solid var(--line)}#hits div:hover{background:var(--bg)}#hits .p{color:var(--mut);font-size:11px;display:block}
 #main{flex:1;min-width:0;display:flex;flex-direction:column}
 #crumb{padding:6px 12px;border-bottom:1px solid var(--line);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
@@ -83,12 +83,13 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
   <div id="ctl">
    <span>알갱이 <select id="grain"></select></span>
    <span class="seg" id="layout"><button data-v="time" class="on">시간표</button><button data-v="flow">흐름도</button></span>
+   <span title="범위 안에서 어느 레벨의 같은 이름만 남긴다 — 예: Lv4 '성능' 을 고르면 모든 구성품·단계의 성능 분야만">같은 이름만 <select id="fLv"><option value="">(끄기)</option></select> <select id="fName" style="max-width:180px"></select></span>
    <label><input type="checkbox" id="chk"> 가장 긴 사슬 강조</label>
    <label><input type="checkbox" id="ext" checked> 범위 밖 출입 표시</label>
    <span class="mut" id="stat"></span>
   </div>
   <div id="canvasWrap"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
-   <div id="legend">상자 = 이름표(왼쪽 끝 = 시작일) · 상자 아래 띠 = 실제 기간 · 회색 = 같은 줄 안 선행 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 범위 밖 · 누름 = 앞(보라)/뒤(초록) 강조 · 두 번 누름 = 안으로</div>
+   <div id="legend">상자 = 이름표(왼쪽 끝 = 시작일) · 상자 아래 회색 띠 = 실제 기간 · 회색 = 같은 줄 안 선행 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 범위 밖 · 누름 = 앞(보라)/뒤(초록) 강조 · 두 번 누름 = 안으로</div>
    <div id="zoom"><button id="zi" title="확대">+</button><button id="zo" title="축소">−</button><button id="zf" title="맞춤">⌂</button></div>
   </div>
  </div>
@@ -119,7 +120,7 @@ function pathText(no){return path(no).map(t=>t.name).join(" › ")}
 // ---- 트리 ----
 const open=new Set();
 function renderTree(){const el=$("treeBody");let h="";const rec=(list,d)=>{for(const no of list){const t=T.get(no),has=t.kids.length>0,o=open.has(no);
- h+=`<div class="tn${S.scope===no?" cur":""}" data-n="${no}" style="padding-left:${6+d*14}px"><span class="tg" data-tg="${no}">${has?(o?"▾":"▸"):"·"}</span><span class="nm" title="${esc(t.wbs+" "+t.name)}">${esc(t.name)}</span><span class="ct">${LEAF.get(no).toLocaleString()}</span></div>`;
+ h+=`<div class="tn${S.scope===no?" cur":""}" data-n="${no}" style="padding-left:${6+d*14}px"><span class="tg" data-tg="${no}">${has?(o?"▾":"▸"):"·"}</span><span class="lv">Lv${t.lv}</span><span class="nm" title="${esc(t.wbs+" "+t.name)}">${esc(t.name)}</span><span class="ct">${LEAF.get(no).toLocaleString()}</span></div>`;
  if(has&&o)rec(t.kids,d+1)}};rec(ROOTS,0);el.innerHTML=h;
  el.querySelectorAll(".tg").forEach(x=>x.onclick=ev=>{ev.stopPropagation();const n=+x.dataset.tg;open.has(n)?open.delete(n):open.add(n);renderTree()});
  el.querySelectorAll(".tn").forEach(x=>x.onclick=()=>{const n=+x.dataset.n;if(T.get(n).kids.length){setScope(n)}else{setScope(T.get(n).par,6);select(n)}})}
@@ -128,25 +129,34 @@ $("q").oninput=()=>{const q=$("q").value.trim().toLowerCase();if(!q){$("hits").i
  $("hits").innerHTML=out.map(t=>`<div data-n="${t.no}"><span class="pill">Lv${t.lv}</span>${t.no} · ${esc(t.name)}<span class="p">${esc(path(t.no).slice(0,-1).map(x=>x.name).join(" › "))}</span></div>`).join("")||'<div class="mut">없음</div>';
  $("hits").querySelectorAll("div[data-n]").forEach(d=>d.onclick=()=>{const n=+d.dataset.n;$("hits").innerHTML="";$("q").value="";if(T.get(n).kids.length)setScope(n);else{setScope(T.get(n).par,6);select(n)}})};
 // ---- 상태 ----
-const S={scope:0,grain:2,layout:"time",sel:null};
+const S={scope:0,grain:2,layout:"time",sel:null,fLv:0,fName:""};
 function scopeLevel(){return S.scope?T.get(S.scope).lv:0}
 function setScope(no,grain){S.scope=no||0;const L=scopeLevel();S.grain=grain||Math.min(6,L+2);S.sel=null;
  for(const t of path(S.scope||ROOTS[0]).slice(0,-1))open.add(t.no);if(S.scope)open.add(S.scope);
  const g=$("grain");g.innerHTML="";for(let l=L+1;l<=6;l++){g.innerHTML+=`<option value="${l}"${l===S.grain?" selected":""}>Lv${l} ${LVNAME[l]}</option>`}
- renderTree();draw();const cur=$("treeBody").querySelector(".tn.cur");if(cur)cur.scrollIntoView({block:"nearest"})}
+ if(S.fLv&&S.fLv<=L){S.fLv=0;S.fName=""}
+ fillFilter();renderTree();draw();const cur=$("treeBody").querySelector(".tn.cur");if(cur)cur.scrollIntoView({block:"nearest"})}
+// 같은 이름만 거르기 — 범위 안 그 레벨 요소의 이름 목록
+function namesAt(lv){const L=scopeLevel(),out=new Set();for(const t of T.values())if(t.lv===lv&&(!S.scope||anc(t.no,L)===S.scope))out.add(t.name);return [...out].sort()}
+function fillFilter(){const L=scopeLevel(),fl=$("fLv");fl.innerHTML='<option value="">(끄기)</option>';for(let l=L+1;l<=5;l++)fl.innerHTML+=`<option value="${l}"${l===S.fLv?" selected":""}>Lv${l} ${LVNAME[l]}</option>`;
+ const fn=$("fName");fn.innerHTML="";fn.style.display=S.fLv?"":"none";if(!S.fLv)return;const names=namesAt(S.fLv);if(!names.includes(S.fName))S.fName=names[0]||"";
+ fn.innerHTML=names.map(n=>`<option${n===S.fName?" selected":""}>${esc(n)}</option>`).join("")}
+$("fLv").onchange=()=>{S.fLv=+$("fLv").value||0;S.fName="";S.sel=null;fillFilter();draw()};
+$("fName").onchange=()=>{S.fName=$("fName").value;S.sel=null;draw()};
 $("grain").onchange=()=>{S.grain=+$("grain").value;S.sel=null;draw()};
 $("layout").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.layout=b.dataset.v;$("layout").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));draw()});
 $("chk").onchange=draw;$("ext").onchange=draw;
 // ---- 뭉치기 ----
 let G=null;
-function build(){const L=scopeLevel(),g=S.grain;
- const inScope=no=>!S.scope||anc(no,L)===S.scope;
- const leaves=[];const walk=list=>{for(const no of list){const t=T.get(no);if(t.kids.length)walk(t.kids);else leaves.push(no)}};walk(S.scope?[S.scope]:ROOTS);
+function build(){const L=scopeLevel(),g=S.grain,F=S.fLv&&S.fName?S.fLv:0;
+ const pass=no=>!F||T.get(anc(no,F)).name===S.fName;             // 같은 이름만: 그 레벨 조상의 이름이 같은 잎만
+ const inScope=no=>(!S.scope||anc(no,L)===S.scope)&&pass(no);
+ const leaves=[];const walk=list=>{for(const no of list){const t=T.get(no);if(t.kids.length)walk(t.kids);else if(pass(no))leaves.push(no)}};walk(S.scope?[S.scope]:ROOTS);
  const nodes=new Map(),nodeOf=new Map();
  for(const lf of leaves){const n=anc(lf,g);nodeOf.set(lf,n);if(!nodes.has(n)){const t=T.get(n);nodes.set(n,{id:n,t,ext:0,lane:g>L+1?anc(n,L+1):0,leaves:0,mh:0,cr:CR.get(n)})}const nd=nodes.get(n);nd.leaves++;nd.mh+=T.get(lf).mh||0}
  const lanes=[];const laneIdx=new Map();if(g>L+1){const kids=S.scope?T.get(S.scope).kids:ROOTS;kids.forEach((k,i)=>{laneIdx.set(k,i);lanes.push(k)})}
  const edges=new Map(),ext=new Map(),handoff=new Map();let internal=0,inN=0,outN=0;
- const extKey=no=>{const k=anc(no,Math.max(L,1));return k};
+ const extKey=no=>anc(no,F&&(!S.scope||anc(no,L)===S.scope)?F:Math.max(L,1));   // 거른 같은 범위 안이면 그 레벨(예: 다른 분야)로 뭉친다
  const extNode=(k,dir)=>{const id=`${dir}:${k}`;if(!ext.has(id)){const pth=path(k),sp=S.scope?path(S.scope):[];let i=0;while(i<pth.length&&i<sp.length&&pth[i].no===sp[i].no)i++;ext.set(id,{id,ext:dir,key:k,t:T.get(k),label:pth.slice(Math.max(0,i)).map(x=>x.name).join(" › ")||T.get(k).name,count:0})}return ext.get(id)};
  for(const e of D.edges){const pi=inScope(e[0]),si=inScope(e[1]);if(!pi&&!si)continue;
   if(pi&&si){const a=nodeOf.get(e[0])??anc(e[0],g),b=nodeOf.get(e[1])??anc(e[1],g);if(a===b){internal++;continue}const k=a+">"+b;let x=edges.get(k);if(!x){x=edges.set(k,{a,b,n:0,ex:[],cross:nodes.get(a)?.lane!==nodes.get(b)?.lane}).get(k)}x.n++;if(x.ex.length<8)x.ex.push(e);
@@ -191,7 +201,7 @@ function draw(){build();const nodes=[...G.nodes.values()],exts=[...G.ext.values(
  for(const n of nodes){const P=pos.get(n.id);if(!P)continue;const col=laneColor(n.lane),me=n.id===sel;let cls="nd";if(sel!=null&&!me&&!upS.has(n.id)&&!dnS.has(n.id))cls+=" dim";if(me)cls+=" sel";
   const crit=chk&&n.cr;s+=`<g class="${cls}" data-n="${n.id}"><rect class="bx" x="${P.x}" y="${P.y}" width="${P.w}" height="${P.h}" rx="5" fill="${me?"var(--sel)":crit?"rgba(220,38,38,.12)":"var(--card)"}" stroke="${crit?"var(--hot)":col}"/>`;
   if(G.lanes.length)s+=`<rect x="${P.x}" y="${P.y}" width="5" height="${P.h}" rx="2.5" fill="${col}"/>`;
-  if(P.band)s+=`<rect x="${P.x}" y="${P.y+P.h-5}" width="${P.band}" height="4" fill="${col}" opacity=".85"/>`;
+  if(P.band)s+=`<rect x="${P.x+1}" y="${P.y+P.h-8}" width="${Math.max(2,P.band-2)}" height="7" rx="2" fill="var(--band)"/>`;
   P.lines.forEach((ln,i)=>{s+=`<text x="${P.tx}" y="${P.y+14+i*15}" font-size="12" fill="currentColor">${esc(ln)}</text>`});
   if(P.sub)s+=`<text x="${P.tx}" y="${P.y+14+P.lines.length*15}" font-size="10.5" fill="var(--mut)">${esc(P.sub)}</text>`;
   s+=`<title>${esc(n.t.wbs+" "+n.t.name+"\n"+pathText(n.id)+"\n"+(n.t.st||"-")+" ~ "+(n.t.fi||"-")+" · 하위 업무 "+n.leaves+" · MH "+Math.round(n.mh).toLocaleString())}</title></g>`}
@@ -199,9 +209,9 @@ function draw(){build();const nodes=[...G.nodes.values()],exts=[...G.ext.values(
   s+=`<g class="${cls}" data-x="${x.key}"><rect x="${P.x}" y="${P.y}" width="${P.w}" height="${P.h}" rx="5" fill="var(--bg)" stroke="var(--mut)" stroke-dasharray="4 3"/>`;
   P.lines.forEach((ln,i)=>{s+=`<text x="${P.x+8}" y="${P.y+14+i*14}" font-size="11" fill="var(--mut)">${esc(ln)}</text>`});s+=`<title>${esc((x.ext==="in"?"범위 밖에서 옴: ":"범위 밖으로 감: ")+pathText(x.key)+"\n"+x.count+"건 — 두 번 누르면 그쪽으로")}</title></g>`}
  svg.innerHTML=s;
- svg.querySelectorAll("g[data-n]").forEach(g=>{g.onclick=ev=>{ev.stopPropagation();select(+g.dataset.n)};g.ondblclick=ev=>{ev.stopPropagation();const n=+g.dataset.n;if(T.get(n).kids.length)setScope(n)}});
+ svg.querySelectorAll("g[data-n]").forEach(g=>{g.onclick=ev=>{ev.stopPropagation();if(!dragged)select(+g.dataset.n)};g.ondblclick=ev=>{ev.stopPropagation();const n=+g.dataset.n;if(T.get(n).kids.length)setScope(n)}});
  svg.querySelectorAll("g[data-x]").forEach(g=>{g.ondblclick=ev=>{ev.stopPropagation();const k=+g.dataset.x;if(T.get(k).kids.length)setScope(k);else setScope(T.get(k).par,6)}});
- svg.onclick=()=>{if(S.sel!=null){S.sel=null;draw()}};
+ svg.onclick=()=>{if(dragged)return;if(S.sel!=null){S.sel=null;keepView=true;draw()}};
  renderCrumb();renderStat();if(sel!=null)renderNode(sel);else renderScope();
  if(!keepView){fit()}keepView=false}
 let keepView=false;
@@ -211,7 +221,7 @@ function layoutTime(nodes,exts,pos){const dated=nodes.filter(n=>n.t.st&&n.t.fi);
  const LABELW=Math.max(60,...G.lanes.map(l=>tw(T.get(l).name)+22)),INW=exts.some(x=>x.ext==="in")?236:0,RIGHT=exts.some(x=>x.ext==="out")?240:40;
  const LEFT=LABELW+INW+12,span=Math.max(30,d1-d0),pxPerDay=Math.max(0.6,Math.min(6,1400/span)),TOP=34;
  const X=d=>LEFT+(d-d0)*pxPerDay;let y=TOP;const laneBands=[];const groups=G.lanes.length?G.lanes.map(l=>nodes.filter(n=>n.lane===l)):[nodes];
- groups.forEach((grp,gi)=>{const rows=[];const sorted=grp.slice().sort((a,b)=>(a.t.st?dateNum(a.t.st):-1e9)-(b.t.st?dateNum(b.t.st):-1e9));const y0=y;
+ groups.forEach((grp,gi)=>{if(!grp.length)return;const rows=[];     // 빈 줄(거르기로 비었거나 잎 없음)은 그리지 않는다const sorted=grp.slice().sort((a,b)=>(a.t.st?dateNum(a.t.st):-1e9)-(b.t.st?dateNum(b.t.st):-1e9));const y0=y;
   for(const n of sorted){const has=!!(n.t.st&&n.t.fi);const x=has?X(dateNum(n.t.st)):LEFT,durPx=has?Math.max(6,(dateNum(n.t.fi)-dateNum(n.t.st)+1)*pxPerDay):0;
    // 상자 = 이름표 (글자는 늘 안에). 실제 기간은 상자 아래 띠(durPx)로 — 기간이 짧으면 상자가 띠보다 넓다
    const sub=has?`${n.t.st} ~ ${n.t.fi} · ${n.t.dur??"-"}일${n.leaves>1?" · 하위 "+n.leaves:""}`:"날짜 없음";
@@ -219,7 +229,7 @@ function layoutTime(nodes,exts,pos){const dated=nodes.filter(n=>n.t.st&&n.t.fi);
    let r=0;while(rows[r]!=null&&rows[r]>x-8)r++;rows[r]=x+w;const yy=y0+22+r*(h+8);
    pos.set(n.id,{x,y:yy,w,h,lines,tx:x+10,band:durPx,sub});
    y=Math.max(y,yy+h)}
-  y+=18;const lane=G.lanes[gi];laneBands.push({i:gi,y:y0,h:y-y0,name:lane?T.get(lane).name:"",color:lane?laneColor(lane):"var(--mut)"})});
+  y+=18;const lane=G.lanes[gi];laneBands.push({i:laneBands.length,y:y0,h:y-y0,name:lane?T.get(lane).name:"",color:lane?laneColor(lane):"var(--mut)"})});
  const W=LEFT+span*pxPerDay+RIGHT+40;
  // 범위 밖 토막: 들어오는 것은 줄 이름 기둥 오른쪽 열, 나가는 것은 오른쪽 끝 열 — 상대 막대 높이에 맞춤
  const place=(list,col)=>{const used=[];for(const x of list.sort((a,b)=>b.count-a.count)){const lines=wrap(`${x.ext==="in"?"← ":"→ "}${x.label} (${x.count})`,200);const h=10+lines.length*14;const tgt=[...G.edges.values()].filter(e=>x.ext==="in"?e.a===x.id:e.b===x.id).map(e=>pos.get(x.ext==="in"?e.b:e.a)).filter(Boolean);
@@ -252,17 +262,20 @@ function setVB(){svg.setAttribute("viewBox",`${VB.x} ${VB.y} ${VB.w} ${VB.h}`)}
 function fit(){const r=svg.getBoundingClientRect(),sc=Math.max(drawn.w/r.width,drawn.h/r.height,0.5);VB={x:0,y:0,w:r.width*sc,h:r.height*sc};if(sc<1){VB={x:0,y:0,w:r.width,h:r.height}}setVB()}
 function zoom(f,cx,cy){const r=svg.getBoundingClientRect();cx=cx??r.width/2;cy=cy??r.height/2;const px=VB.x+cx/r.width*VB.w,py=VB.y+cy/r.height*VB.h;VB.w*=f;VB.h*=f;VB.x=px-cx/r.width*VB.w;VB.y=py-cy/r.height*VB.h;setVB()}
 svg.addEventListener("wheel",ev=>{ev.preventDefault();const r=svg.getBoundingClientRect();zoom(ev.deltaY>0?1.15:1/1.15,ev.clientX-r.left,ev.clientY-r.top)},{passive:false});
-let drag=null;svg.onmousedown=ev=>{drag={x:ev.clientX,y:ev.clientY,vx:VB.x,vy:VB.y}};window.onmousemove=ev=>{if(!drag)return;const r=svg.getBoundingClientRect();VB.x=drag.vx-(ev.clientX-drag.x)*VB.w/r.width;VB.y=drag.vy-(ev.clientY-drag.y)*VB.h/r.height;setVB()};window.onmouseup=()=>drag=null;
+let drag=null,dragged=false;   // 끌어 옮긴 뒤 따라오는 click 은 무시한다 (끌기 = 선택 해제·맞춤이 아니다)
+svg.onmousedown=ev=>{drag={x:ev.clientX,y:ev.clientY,vx:VB.x,vy:VB.y};dragged=false};
+window.onmousemove=ev=>{if(!drag)return;if(Math.abs(ev.clientX-drag.x)+Math.abs(ev.clientY-drag.y)>3)dragged=true;const r=svg.getBoundingClientRect();VB.x=drag.vx-(ev.clientX-drag.x)*VB.w/r.width;VB.y=drag.vy-(ev.clientY-drag.y)*VB.h/r.height;setVB()};
+window.onmouseup=()=>{drag=null;setTimeout(()=>dragged=false,0)};
 $("zi").onclick=()=>zoom(1/1.3);$("zo").onclick=()=>zoom(1.3);$("zf").onclick=fit;window.onresize=fit;
 function select(n){S.sel=n;keepView=true;draw()}
 // ---- 빵부스러기·패널 ----
-function renderCrumb(){let h=`<span class="c" data-n="0">전체</span>`;for(const t of (S.scope?path(S.scope):[]))h+=` › <span class="c" data-n="${t.no}">${esc(t.name)}</span>`;h+=` <span class="mut">(Lv${S.grain} ${LVNAME[S.grain]} 알갱이)</span>`;$("crumb").innerHTML=h;$("crumb").querySelectorAll(".c").forEach(c=>c.onclick=()=>setScope(+c.dataset.n))}
+function renderCrumb(){let h=`<span class="c" data-n="0">전체</span>`;for(const t of (S.scope?path(S.scope):[]))h+=` › <span class="c" data-n="${t.no}">${esc(t.name)}</span>`;h+=` <span class="mut">(Lv${S.grain} ${LVNAME[S.grain]} 알갱이${S.fLv&&S.fName?` · Lv${S.fLv} '${esc(S.fName)}' 만`:""})</span>`;$("crumb").innerHTML=h;$("crumb").querySelectorAll(".c").forEach(c=>c.onclick=()=>setScope(+c.dataset.n))}
 function renderStat(){$("stat").textContent=`상자 ${G.nodes.size} · 선 ${[...G.edges.values()].filter(e=>!e.ext).length} (뭉쳐진 안쪽 ${G.internal}) · 밖에서 옴 ${G.inN} · 밖으로 감 ${G.outN}`}
 function fmtMH(v){return Math.round(v).toLocaleString()}
 function renderScope(){const sc=S.scope?T.get(S.scope):null;const name=sc?sc.name:"전체";const ds=[...G.nodes.values()].map(n=>n.t.st).filter(Boolean).sort(),de=[...G.nodes.values()].map(n=>n.t.fi).filter(Boolean).sort();
  const hand=[...G.handoff.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,v])=>{const [a,b]=k.split(">").map(Number);return `<tr><td>${esc(T.get(a).name)} → ${esc(T.get(b).name)}</td><td>${v}</td></tr>`}).join("");
  const chain=G.chain.map(no=>`<span class="lnk" data-n="${no}">${esc(T.get(no).name)}</span>`).join(" → ");
- let h=`<h3>${esc(name)}${sc?` <span class="pill">Lv${sc.lv} ${LVNAME[sc.lv]}</span>`:""}</h3>${sc?`<div class="mut">${esc(pathText(sc.no))}</div>`:""}
+ let h=`<h3>${esc(name)}${sc?` <span class="pill">Lv${sc.lv} ${LVNAME[sc.lv]}</span>`:""}${S.fLv&&S.fName?` <span class="pill">Lv${S.fLv} '${esc(S.fName)}' 만</span>`:""}</h3>${sc?`<div class="mut">${esc(pathText(sc.no))}</div>`:""}
  <table><tr><td>하위 업무</td><td>${G.leaves.toLocaleString()}</td></tr><tr><td>MH 합(잎)</td><td>${fmtMH([...G.nodes.values()].reduce((a,n)=>a+n.mh,0))}</td></tr>
  <tr><td>기간</td><td>${ds[0]||"-"} ~ ${de[de.length-1]||"-"}</td></tr><tr><td>넘겨받기</td><td>${[...G.handoff.values()].reduce((a,b)=>a+b,0)}건 (줄을 넘는 선행)</td></tr>
  <tr><td>범위 밖</td><td>들어옴 ${G.inN} · 나감 ${G.outN}</td></tr></table>`;
