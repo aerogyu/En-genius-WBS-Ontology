@@ -88,7 +88,7 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
    <span class="mut" id="stat"></span>
   </div>
   <div id="canvasWrap"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
-   <div id="legend">회색 = 같은 줄 안 선행 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 범위 밖 · 누름 = 앞(보라)/뒤(초록) 강조 · 두 번 누름 = 안으로</div>
+   <div id="legend">상자 = 이름표(왼쪽 끝 = 시작일) · 상자 아래 띠 = 실제 기간 · 회색 = 같은 줄 안 선행 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 범위 밖 · 누름 = 앞(보라)/뒤(초록) 강조 · 두 번 누름 = 안으로</div>
    <div id="zoom"><button id="zi" title="확대">+</button><button id="zo" title="축소">−</button><button id="zf" title="맞춤">⌂</button></div>
   </div>
  </div>
@@ -173,6 +173,7 @@ function draw(){build();const nodes=[...G.nodes.values()],exts=[...G.ext.values(
  drawn={w:W,h:H};
  const chk=$("chk").checked;let s=`<defs><marker id="ar" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="context-stroke"/></marker></defs>`;
  for(const b of laneBands)s+=`<rect x="0" y="${b.y}" width="${W}" height="${b.h}" fill="${b.i%2?"rgba(127,127,127,.06)":"transparent"}"/><text x="8" y="${b.y+16}" font-size="12" font-weight="bold" fill="${b.color}">${esc(b.name)}</text>`;
+ if(laneBands.length&&laneBands.labelW)s+=`<line x1="${laneBands.labelW-2}" y1="0" x2="${laneBands.labelW-2}" y2="${H}" stroke="var(--line)"/>`;
  if(axis){for(const t of axis.ticks)s+=`<line x1="${t.x}" y1="${axis.y}" x2="${t.x}" y2="${H}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${t.x+3}" y="${axis.y-4}" font-size="11" fill="var(--mut)">${t.label}</text>`}
  const sel=S.sel,upS=new Set(),dnS=new Set();
  if(sel!=null){const adjU=new Map(),adjD=new Map();for(const e of G.edges.values()){(adjU.get(e.b)||adjU.set(e.b,[]).get(e.b)).push(e.a);(adjD.get(e.a)||adjD.set(e.a,[]).get(e.a)).push(e.b)}
@@ -190,6 +191,7 @@ function draw(){build();const nodes=[...G.nodes.values()],exts=[...G.ext.values(
  for(const n of nodes){const P=pos.get(n.id);if(!P)continue;const col=laneColor(n.lane),me=n.id===sel;let cls="nd";if(sel!=null&&!me&&!upS.has(n.id)&&!dnS.has(n.id))cls+=" dim";if(me)cls+=" sel";
   const crit=chk&&n.cr;s+=`<g class="${cls}" data-n="${n.id}"><rect class="bx" x="${P.x}" y="${P.y}" width="${P.w}" height="${P.h}" rx="5" fill="${me?"var(--sel)":crit?"rgba(220,38,38,.12)":"var(--card)"}" stroke="${crit?"var(--hot)":col}"/>`;
   if(G.lanes.length)s+=`<rect x="${P.x}" y="${P.y}" width="5" height="${P.h}" rx="2.5" fill="${col}"/>`;
+  if(P.band)s+=`<rect x="${P.x}" y="${P.y+P.h-5}" width="${P.band}" height="4" fill="${col}" opacity=".85"/>`;
   P.lines.forEach((ln,i)=>{s+=`<text x="${P.tx}" y="${P.y+14+i*15}" font-size="12" fill="currentColor">${esc(ln)}</text>`});
   if(P.sub)s+=`<text x="${P.tx}" y="${P.y+14+P.lines.length*15}" font-size="10.5" fill="var(--mut)">${esc(P.sub)}</text>`;
   s+=`<title>${esc(n.t.wbs+" "+n.t.name+"\n"+pathText(n.id)+"\n"+(n.t.st||"-")+" ~ "+(n.t.fi||"-")+" · 하위 업무 "+n.leaves+" · MH "+Math.round(n.mh).toLocaleString())}</title></g>`}
@@ -204,22 +206,26 @@ function draw(){build();const nodes=[...G.nodes.values()],exts=[...G.ext.values(
  if(!keepView){fit()}keepView=false}
 let keepView=false;
 function nodeBox(n,maxW){const lines=wrap(n.t.name,maxW-16),w=Math.max(90,Math.min(maxW,Math.max(...lines.map(tw))+16)),sub=`${n.t.dur??"-"}일${n.leaves>1?" · 하위 "+n.leaves:""}`;return{lines,w,h:14+lines.length*15+6+(sub?12:0),sub}}
-function layoutTime(nodes,exts,pos){const dated=nodes.filter(n=>n.t.st&&n.t.fi);const d0=Math.min(...dated.map(n=>dateNum(n.t.st))),d1=Math.max(...dated.map(n=>dateNum(n.t.fi)));
- const span=Math.max(30,d1-d0),LEFT=exts.some(x=>x.ext==="in")?240:40,RIGHT=exts.some(x=>x.ext==="out")?240:40,pxPerDay=Math.max(0.6,Math.min(6,1400/span)),TOP=34;
+function layoutTime(nodes,exts,pos){const dated=nodes.filter(n=>n.t.st&&n.t.fi);const d0=dated.length?Math.min(...dated.map(n=>dateNum(n.t.st))):0,d1=dated.length?Math.max(...dated.map(n=>dateNum(n.t.fi))):30;
+ // 왼쪽부터: 줄 이름 기둥 | 들어오는 토막 열 | 막대 영역 | 나가는 토막 열 — 서로 겹치지 않게 기둥을 나눈다
+ const LABELW=Math.max(60,...G.lanes.map(l=>tw(T.get(l).name)+22)),INW=exts.some(x=>x.ext==="in")?236:0,RIGHT=exts.some(x=>x.ext==="out")?240:40;
+ const LEFT=LABELW+INW+12,span=Math.max(30,d1-d0),pxPerDay=Math.max(0.6,Math.min(6,1400/span)),TOP=34;
  const X=d=>LEFT+(d-d0)*pxPerDay;let y=TOP;const laneBands=[];const groups=G.lanes.length?G.lanes.map(l=>nodes.filter(n=>n.lane===l)):[nodes];
- groups.forEach((grp,gi)=>{const rows=[];const sorted=grp.filter(n=>n.t.st).sort((a,b)=>dateNum(a.t.st)-dateNum(b.t.st));const undated=grp.filter(n=>!n.t.st);const y0=y;
-  for(const n of sorted){const x=X(dateNum(n.t.st)),bw=Math.max(14,(dateNum(n.t.fi)-dateNum(n.t.st)+1)*pxPerDay);const lines=wrap(n.t.name,Math.max(bw-14,220));const textW=Math.max(...lines.map(tw))+14;const inside=bw>=textW;const w=inside?bw:bw;const totalW=inside?bw:bw+textW+6;
-   const h=inside?14+lines.length*15+16:Math.max(26,14+lines.length*15+4);let r=0;while(rows[r]!=null&&rows[r]>x-6)r++;rows[r]=x+totalW;
-   const yy=y0+22+r*(h+10);pos.set(n.id,{x,y:yy,w,h,lines,tx:inside?x+10:x+bw+6,sub:inside?`${n.t.st} ~ ${n.t.fi} · ${n.t.dur??"-"}일${n.leaves>1?" · 하위 "+n.leaves:""}`:""});
-   if(!inside){pos.get(n.id).w=bw;pos.get(n.id).lines=lines}
+ groups.forEach((grp,gi)=>{const rows=[];const sorted=grp.slice().sort((a,b)=>(a.t.st?dateNum(a.t.st):-1e9)-(b.t.st?dateNum(b.t.st):-1e9));const y0=y;
+  for(const n of sorted){const has=!!(n.t.st&&n.t.fi);const x=has?X(dateNum(n.t.st)):LEFT,durPx=has?Math.max(6,(dateNum(n.t.fi)-dateNum(n.t.st)+1)*pxPerDay):0;
+   // 상자 = 이름표 (글자는 늘 안에). 실제 기간은 상자 아래 띠(durPx)로 — 기간이 짧으면 상자가 띠보다 넓다
+   const sub=has?`${n.t.st} ~ ${n.t.fi} · ${n.t.dur??"-"}일${n.leaves>1?" · 하위 "+n.leaves:""}`:"날짜 없음";
+   const lines=wrap(n.t.name,Math.max(durPx,220)-14),textW=Math.max(tw(sub)*10.5/12,...lines.map(tw))+16,w=Math.max(durPx,textW,60),h=14+lines.length*15+18;
+   let r=0;while(rows[r]!=null&&rows[r]>x-8)r++;rows[r]=x+w;const yy=y0+22+r*(h+8);
+   pos.set(n.id,{x,y:yy,w,h,lines,tx:x+10,band:durPx,sub});
    y=Math.max(y,yy+h)}
-  undated.forEach((n,i)=>{const b=nodeBox(n,220);pos.set(n.id,{x:LEFT-230,y:y0+22+i*(b.h+8),w:b.w,h:b.h,lines:b.lines,tx:LEFT-230+8,sub:"날짜 없음"});y=Math.max(y,y0+22+i*(b.h+8)+b.h)});
   y+=18;const lane=G.lanes[gi];laneBands.push({i:gi,y:y0,h:y-y0,name:lane?T.get(lane).name:"",color:lane?laneColor(lane):"var(--mut)"})});
  const W=LEFT+span*pxPerDay+RIGHT+40;
- // 범위 밖 토막: 들어오는 것은 왼쪽 열, 나가는 것은 오른쪽 열 — 상대 막대 높이에 맞춤
+ // 범위 밖 토막: 들어오는 것은 줄 이름 기둥 오른쪽 열, 나가는 것은 오른쪽 끝 열 — 상대 막대 높이에 맞춤
  const place=(list,col)=>{const used=[];for(const x of list.sort((a,b)=>b.count-a.count)){const lines=wrap(`${x.ext==="in"?"← ":"→ "}${x.label} (${x.count})`,200);const h=10+lines.length*14;const tgt=[...G.edges.values()].filter(e=>x.ext==="in"?e.a===x.id:e.b===x.id).map(e=>pos.get(x.ext==="in"?e.b:e.a)).filter(Boolean);
   let yy=tgt.length?Math.min(...tgt.map(p=>p.y)):TOP;while(used.some(u=>Math.abs(u-yy)<h+6))yy+=h+6;used.push(yy);pos.set(x.id,{x:col,y:yy,w:216,h,lines})}};
- place(exts.filter(x=>x.ext==="in"),12);place(exts.filter(x=>x.ext==="out"),W-RIGHT+16);
+ place(exts.filter(x=>x.ext==="in"),LABELW+6);place(exts.filter(x=>x.ext==="out"),W-RIGHT+16);
+ laneBands.labelW=LABELW;
  const H=Math.max(y,...[...pos.values()].map(p=>p.y+p.h))+30;
  const ticks=[];const start=new Date(d0*864e5);let yr=start.getUTCFullYear();for(;;){const d=Date.UTC(yr,0,1)/864e5;if(d>d1)break;if(d>=d0)ticks.push({x:X(d),label:String(yr)});if(pxPerDay>2.5)for(let m=1;m<12;m+=3){const dm=Date.UTC(yr,m,1)/864e5;if(dm>=d0&&dm<=d1)ticks.push({x:X(dm),label:`${yr}-${String(m+1).padStart(2,"0")}`})}yr++}
  return{W,H,laneBands,axis:{y:TOP-6,ticks}}}
