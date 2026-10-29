@@ -29,6 +29,17 @@ python -m pytest                                                     # scripts\s
 ```
 실행: 형제 저장소 Tool 온톨로지의 `.venv` 파이썬 + `PYTHONPATH=src` (`scripts\env.bat` 이 맞춰 준다). 새 패키지 0 (openpyxl·rdflib·pyyaml).
 
+## 사내(방산망) 설치
+
+1. GitHub `aerogyu/En-genius-WBS-Ontology` → **Code → Download ZIP** (`En-genius-WBS-Ontology-main.zip`, 약 45 KB, 텍스트만) → 반입.
+2. 풀어서 **Tool 온톨로지와 같은 부모 폴더**에 둔다 — 예: `C:\EnGenius\engenius-wbs-ontology` (옆에 `C:\EnGenius\engenius-tool-ontology` 가 있어야 한다).
+   다른 곳이면 `scripts\env.bat` 의 `TOOL_ONTO_DIR` 를 Tool 온톨로지 폴더로 고친다. 따로 설치할 것 없음 (그쪽 `.venv` 를 쓴다).
+3. `scripts\selftest.bat` 더블클릭 → `21 passed` · `rc=0`.
+4. WBS 엑셀(.xlsx — 첫 시트를 읽는다)을 `scripts\build.bat` 위에 끌어다 놓기 → 출력 폴더의 `wbs_view.html`(브라우저)·`report.xlsx`.
+   WBS 가 첫 시트가 아니면: `scripts\env.bat` 실행 뒤 `"%PY%" -m engenius_wbs build <파일> --sheet <시트 이름>`.
+5. `P01 헤더를 찾지 못함` 이면 헤더 문구가 별칭에 없다 → `config\wbs.yaml` 을 `data\real\config\wbs.yaml` 로 복사해 `columns` 에 그 문구를 더한다.
+6. 밖으로 가져올 수 있는 것은 `run_log.json` 의 건수(문제 코드별 건수·업무 수·걸린 시간)뿐 — 보고서·HTML·TTL 은 업무 이름이 든 사내 자료.
+
 ## 산출물 (`output/<시각>/`)
 
 | 파일 | 내용 |
