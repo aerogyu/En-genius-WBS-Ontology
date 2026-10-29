@@ -1,0 +1,45 @@
+# En-Genius WBS 온톨로지 (오픈소스 트랙)
+
+한화에어로스페이스 엔진 개발 AI 플랫폼 En-Genius 의 WBS 저장소 — Tool 온톨로지(`C:\EnGenius\engenius-tool-ontology`)·워크플로 온톨로지·자료 조사의 형제.
+MS Project 로 만든 사업 WBS 엑셀(약 12,800행, Lv1~Lv6)의 **선행 작업 열**을 그래프로 만들어 검사·영향 범위·분야 간 연결·주경로(근사)를 계산하고 보기 HTML 로 보인다.
+최종 산출물은 사내 폐쇄망에서 실제 WBS 로 돌릴 **코드·설정 묶음**이다. 이 PC 에서는 가짜 WBS(`python -m engenius_wbs synth`)로 만들고 검증만 한다.
+
+## 절대 규칙 (형제 저장소에서 승계)
+
+1. **실제 WBS 엑셀·업무 이름·산출물·사업 이름은 이 PC 에 두지 않는다.** Leo 가 채팅에 적어도 저장소·메모리에 기록하지 않는다. 실데이터로 보이는 내용이 들어오면 멈추고 확인한다.
+2. 가짜 WBS 는 교과서 수준 일반 명칭만 (구성품 Fan·HPC, 단계 기본설계, 분야 성능·이차유로 등). 사내 업무명·문서번호·인명을 지어내지 않는다.
+3. 폐쇄망 — 런타임에 외부 네트워크·CDN 호출 없음 (보기 HTML 도 외부 JS 0).
+4. **새 패키지 0** — Tool 온톨로지 `.venv` 의 openpyxl·rdflib·pyyaml·pytest 만. 필요하면 Leo 승인 뒤 그쪽 `docs/04_반입목록.md` 기준(허용형 라이선스, 오프라인 wheel).
+5. **인명은 저장하지 않는다** — '작성자' 등 `config/wbs.yaml person_columns` 칸은 값을 읽지도 않는다 (테스트가 출력에 자리표시 '가나다' 가 없는지 본다).
+6. 코드는 판정하지 않는다 — 검사·계산은 후보와 안내만. 최종 판단은 엔지니어.
+7. `data/real/`·`output/` 은 git 에 올리지 않는다.
+
+## 확정된 결정 (Leo 2026-10-29)
+
+- 저장소 = 새 `engenius-wbs-ontology` (워크플로 온톨로지는 손으로 쓴 YAML 을 엄격히 검사하는 구조라 대량 엑셀 적재와 성격이 다름 — 대조는 IRI 공유로 나중에).
+- 엑셀 모양 (Leo 설명): A 번호(선행이 가리키는 업무 번호 — 엑셀 행 아님) · B WBS 코드 · C 이름(앞 띄어쓰기 들여쓰기) · D 기간 · E·F 날짜 **글자** `27-01-01 (금)` ·
+  G 선행(쉼표, `FF`·`FS+10일` 섞임) · H 후속(MS Project 결과 — 검산만) · I 작성자(읽지 않음) · J 투입인력 · K Man Hours · L 산출물(주로 Lv5).
+- 레벨: Lv1 구성품(모듈) · Lv2 최상위 업무 · Lv3 개발 단계 · Lv4 기술 분야 · Lv5 상위 기술 업무 · Lv6 하위 기술 업무.
+- 시각화 우선 = ② 분야 간 연결 + ③ 업무 중심 선후 (권장안). WBS 트리·간트는 뒤로.
+- IRI: `egid:WBS-<번호6>` · `WDEP-<선행>-<후속>` · `WDEL-<해시>` · `WFLOW-<해시>` · `WRUN-<시각>`, 술어 `http://en-genius.local/onto/wbs/`.
+  형제 접두(Tool: TOOL·USE·IO·CAT·FLD·LOAD·FEED·RECON·ISO·HANDOFF / 워크플로: PLAN·DSC·CPN·TRF·STEP·IFC·LOOP·INB·OUB·IFI·REC·VAR·REL·SPLAN·BUILD·SRC)와 겹치지 않는다.
+
+## 코드 지도
+
+- `src/engenius_wbs/parse.py` — 헤더 찾기·값 읽기(날짜·기간·선행 표기)·트리 잇기, 문제 코드 표 `ISSUES` (P·C)
+- `analyze.py` — C01~C10 · 순환(Tarjan) · 앞쪽/뒤쪽 전체(비트셋) · 사건 그래프 CPM(업무마다 시작·완료 사건, 상위 묶음은 감쌈) · 분야 간 흐름
+- `rdfout.py` (wbs.ttl·derived.ttl) · `report.py` (xlsx 6시트) · `viz.py` (HTML 한 장, 데이터 JSON 내장) · `synth.py` (가짜 WBS + 심은 문제 = 테스트 골든)
+- `config/wbs.yaml` — 헤더 별칭·인명 칸·레벨 이름·단위 (사내 조정본 `data/real/config/wbs.yaml`)
+- 실행: `<Tool 온톨로지>\.venv\Scripts\python -m engenius_wbs build <xlsx>` (PYTHONPATH=src, PYTHONUTF8=1) · 사내 `scripts\build.bat` 에 끌어다 놓기
+
+## 현재 상태
+
+- [x] **v0.1 (2026-10-29)** — 읽기·검사·CPM·TTL·보고서·보기 HTML·가짜 WBS 생성기. 가짜 12,827행: 심은 문제 11종 14건을 모두 찾고 다른 문제 0,
+  전체 26초(TTL 쓰기 24초). 손으로 셈한 12행 WBS 로 CPM(16일·사슬 6→7→10→12·여유)·앞뒤 수·분야 흐름 검증. pytest 21. 보기 HTML 브라우저에서 ①②③ 동작·콘솔 오류 0.
+- [ ] Leo 확인 — 사내 실제 WBS 로 돌려 보기(헤더 이름이 별칭에 있는지, 문제 코드별 건수), 보기 HTML 이 쓸 만한지
+- [ ] 다음 후보: 판을 넘는 ID 이어받기(레지스트리) · WBS 트리·간트 화면 · 산출물 ↔ 자료 조사 유형 · 분야 ↔ Tool 온톨로지 파트 약칭 · 워크플로 온톨로지 단계와 대조 · TTL 쓰기 속도
+- GitHub 원격: 아직 없음 (Leo 확인 뒤 비공개 저장소)
+
+## Leo 와 일하는 방식
+
+한국어 · 구조 먼저(큰 구현 전 짧은 설계 확인) · 보수적 주장 · DB 비유(스키마=ERD, 적재=ETL, SPARQL=SQL) · 판(v0.1, v0.2 …)으로 쌓기 · 커밋 즉시 push(원격 생기면).

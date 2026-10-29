@@ -1,0 +1,13 @@
+# 실데이터 — 절대 커밋 금지 (사내 WBS 엑셀·사내 설정 조정본)
+data/real/
+
+# 실행 결과 (TTL·보고서·보기 HTML — 실데이터로 돌리면 사내 자료)
+output/
+
+# 합성 WBS 는 명령으로 다시 만든다 (python -m engenius_wbs synth)
+data/synthetic/*.xlsx
+
+__pycache__/
+*.pyc
+.pytest_cache/
+~$*

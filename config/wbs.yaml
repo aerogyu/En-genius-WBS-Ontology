@@ -1,0 +1,59 @@
+# WBS 엑셀(MS Project 내보내기) 읽기 설정 — 사내에서 코드 수정 없이 조정한다.
+# 사내 조정본은 data/real/config/wbs.yaml (있으면 그쪽을 통째로 먼저 읽는다, git 제외).
+
+# 헤더 이름 → 칸 key. 헤더 행은 시트 위쪽 header_scan_rows 행 안에서 'wbs' 와 'name' 이 함께 있는 첫 행.
+# 비교는 NFKC 후 공백·괄호·'*' 를 뺀 소문자로 한다 ('투입인력(명)' = '투입인력명').
+header_scan_rows: 15
+columns:
+  row_no:      ["번호", "행 번호", "ID", "No", "No.", "작업 번호"]
+  wbs:         ["WBS", "WBS 코드", "개요 번호"]
+  name:        ["작업 이름", "작업명", "이름", "Task Name"]
+  duration:    ["기간", "Duration"]
+  start:       ["시작", "시작 날짜", "Start"]
+  finish:      ["완료", "완료 날짜", "종료", "Finish"]
+  preds:       ["선행 작업", "선행작업", "Predecessors"]
+  succs:       ["후속 작업", "후속작업", "Successors"]
+  staff:       ["투입인력(명)", "투입인력", "투입 인원"]
+  man_hours:   ["Man Hours", "Man Hour", "MH", "공수"]
+  deliverable: ["산출물"]
+# 읽지 않는 칸 (인명) — 헤더가 이 이름이면 값을 보지도 않는다. 위 columns 에 없는 다른 칸도 읽지 않는다.
+person_columns: ["작성자", "담당자", "담당", "작성", "리소스 이름", "Resource Names"]
+required: [row_no, wbs, name]
+
+# 레벨 이름 (WBS 코드 마디 수 = 레벨). 6 보다 깊으면 '하위 업무(Lv7+)'.
+levels:
+  1: {class: Module,      label: 구성품}
+  2: {class: TopTask,     label: 최상위 업무}
+  3: {class: Phase,       label: 개발 단계}
+  4: {class: Discipline,  label: 기술 분야}
+  5: {class: WorkPackage, label: 상위 기술 업무}
+  6: {class: Task,        label: 하위 기술 업무}
+
+# 분야 행렬·시각화가 묶는 레벨
+module_level: 1
+phase_level: 3
+discipline_level: 4
+
+# 날짜 글자 형식: '27-01-01 (금)' — 두 자리 연도에 더할 세기
+century: 2000
+
+# 기간·지연 단위 → 일 (MS Project 표기). 주·개월은 근무일 근사 (주 5일, 개월 20일) — 계산은 '근사' 로만 쓴다.
+unit_days:
+  "일": 1
+  "경과일": 1
+  "d": 1
+  "day": 1
+  "days": 1
+  "주": 5
+  "경과주": 7
+  "w": 5
+  "wk": 5
+  "개월": 20
+  "월": 20
+  "mo": 20
+  "시간": 0.125
+  "h": 0.125
+  "분": 0.0020833
+
+# 산출물 칸을 나눌 구분자 (줄바꿈은 늘 나눈다)
+deliverable_split: [",", ";"]
