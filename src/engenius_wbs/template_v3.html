@@ -32,8 +32,17 @@ select,input{background:var(--card);color:var(--fg);border:1px solid var(--line)
 #canvasWrap{flex:1;position:relative;overflow:hidden;background:var(--card)}
 #canvas{width:100%;height:100%;cursor:grab;display:block}#canvas:active{cursor:grabbing}
 #axis{position:absolute;left:0;top:0;width:100%;height:24px;pointer-events:none;background:var(--card);border-bottom:1px solid var(--line);display:none}
+#gantt{position:absolute;inset:0;overflow:auto;display:none;background:var(--card)}
+.gg{display:grid;width:max-content;min-width:100%}
+.gg .gh{position:sticky;top:0;z-index:2;background:var(--card);border-bottom:1px solid var(--line);height:28px}
+.gg .gl{position:sticky;left:0;z-index:1;background:var(--card);border-right:1px solid var(--line)}.gg .gh.gl{z-index:3}
+.gr0{display:grid;align-items:center;height:24px;border-bottom:1px solid rgba(127,127,127,.12);cursor:pointer;white-space:nowrap}
+.gr0>span{overflow:hidden;text-overflow:ellipsis;padding:0 6px}.gr0 .num{text-align:right;font-variant-numeric:tabular-nums;color:var(--mut);font-size:12px}
+.gr0.ghd{font-weight:bold;background:rgba(127,127,127,.07)}.gr0.on{background:var(--sel)}.gr0.up{color:var(--up)}.gr0.dn{color:var(--dn)}
+.gg .gh .gr0{height:28px;border:0;cursor:default;color:var(--mut);font-size:12px}
+#gantt svg text{font-size:11px}
 #legend{position:absolute;left:10px;bottom:8px;font-size:11px;color:var(--mut);background:var(--card);padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
-#zoom{position:absolute;right:10px;top:30px;display:flex;gap:4px}#zoom button{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;width:28px;height:28px;cursor:pointer}
+#zoom{position:absolute;right:18px;bottom:30px;z-index:5;display:flex;gap:4px}#zoom button{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;width:28px;height:28px;cursor:pointer}
 #now{padding:5px 12px;border-top:1px solid var(--line);font-size:12px;display:flex;gap:10px;align-items:center}#now .lnk{margin-left:auto;white-space:nowrap}
 #side{width:330px;min-width:260px;border-left:1px solid var(--line);overflow:auto;padding:10px 12px;background:var(--card)}
 #side h3{margin:8px 0 4px;font-size:13px}#side table{border-collapse:collapse;width:100%}#side td{padding:2px 4px;border-bottom:1px solid var(--line);vertical-align:top}#side td:first-child{color:var(--mut);white-space:nowrap}
@@ -57,9 +66,11 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
    <span class="k">거르기</span><div class="row" id="filters"></div>
    <span class="k">묶기</span><div class="row"><select id="grain"></select><span class="mut">상자 하나 = 이 레벨 요소 하나</span></div>
    <span class="k">줄 나누기</span><div class="row"><select id="lane"></select><span class="mut">가로 띠를 어느 레벨 이름으로 나눌지</span></div>
-   <span class="k">배치</span><div class="row"><span class="seg" id="layout"><button data-v="time" class="on">시간표</button><button data-v="flow">흐름도</button></span><span class="mut" id="stat"></span></div>
+   <span class="k">배치</span><div class="row"><span class="seg" id="layout"><button data-v="gantt" class="on">간트</button><button data-v="time">시간표</button><button data-v="flow">흐름도</button></span>
+    <span class="seg" id="order" title="간트 행 순서"><button data-v="wbs" class="on">WBS 순</button><button data-v="start">시작일 순</button></span>
+    <span class="mut">선</span><span class="seg" id="lines"><button data-v="off">끔</button><button data-v="sel" class="on">고른 것만</button><button data-v="hand">넘겨받기만</button><button data-v="all">전부</button></span><span class="mut" id="stat"></span></div>
   </div>
-  <div id="canvasWrap"><svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg><svg id="axis" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="canvasWrap"><div id="gantt"></div><svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg><svg id="axis" xmlns="http://www.w3.org/2000/svg"></svg>
    <div id="legend">상자 = 이름표(왼쪽 끝 = 시작일) · 회색 띠 = 실제 기간 · 회색 선 = 같은 줄 안 선행 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록) · 두 번 누름 = 그 안으로</div>
    <div id="zoom"><button id="zi" title="확대">+</button><button id="zo" title="축소">−</button><button id="zf" title="맞춤">⌂</button></div>
   </div>
@@ -93,7 +104,8 @@ function pathText(no){return path(no).map(t=>t.name).join(" › ")}
 // 레벨별 이름 목록 (이름 → 잎 수, 요소 수) — 피벗의 선택지
 const NAMES={};for(let l=1;l<=5;l++){const m=new Map();for(const t of T.values())if(t.lv===l){const e=m.get(t.name)||{leaves:0,n:0,row:t.no};e.leaves+=LEAF.get(t.no);e.n++;m.set(t.name,e)}NAMES[l]=m}
 // ---- 상태 ----
-const S={f:{1:null,2:null,3:null,4:null,5:null},picks:new Set(),grain:3,lane:1,layout:"time",sel:null};
+const S={f:{1:null,2:null,3:null,4:null,5:null},picks:new Set(),grain:3,lane:1,layout:"gantt",lines:"sel",order:"wbs",sel:null,ppd:null};
+const ROWIDX=new Map(D.tasks.map((r,i)=>[r[0],i])),COLLAPSED=new Set();
 function passLeaf(no){for(let l=1;l<=5;l++){const f=S.f[l];if(!f)continue;const a=ancExact(no,l);if(a==null||!f.has(T.get(a).name))return false}
  if(S.picks.size){let ok=false;for(const p of S.picks){if(anc(no,T.get(p).lv)===p){ok=true;break}}if(!ok)return false}return true}
 function deepestFilter(){let d=0;for(let l=1;l<=5;l++)if(S.f[l])d=l;return d}
@@ -120,7 +132,11 @@ function syncControls(){const fl=$("filters");let h="";for(let l=1;l<=5;l++){con
  const g=$("grain");g.innerHTML="";for(let l=Math.max(2,1);l<=6;l++)g.innerHTML+=`<option value="${l}"${l===S.grain?" selected":""}${l<minG?" disabled":""}>Lv${l} ${LVNAME[l]}</option>`;
  const ln=$("lane");ln.innerHTML=`<option value="0"${S.lane===0?" selected":""}>없음</option>`;for(let l=1;l<S.grain&&l<=4;l++)ln.innerHTML+=`<option value="${l}"${S.lane===l?" selected":""}>Lv${l} ${LVNAME[l]} 이름별</option>`;
  if(S.picks.size)ln.innerHTML+=`<option value="pick"${S.lane==="pick"?" selected":""}>고른 항목별</option>`;if(typeof S.lane==="number"&&S.lane>=S.grain)S.lane=0;
- $("layout").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===S.layout))}
+ $("layout").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===S.layout));
+ $("lines").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===S.lines));
+ $("order").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===S.order));$("order").style.display=S.layout==="gantt"?"":"none"}
+$("lines").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.lines=b.dataset.v;syncControls();keepView=true;draw()});
+$("order").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.order=b.dataset.v;syncControls();keepView=true;draw()});
 $("grain").onchange=()=>{S.grain=+$("grain").value;if(typeof S.lane==="number"&&S.lane>=S.grain)S.lane=0;S.sel=null;syncControls();draw()};
 $("lane").onchange=()=>{const v=$("lane").value;S.lane=v==="pick"?"pick":+v;S.sel=null;draw()};
 $("layout").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.layout=b.dataset.v;syncControls();draw()});
@@ -182,7 +198,18 @@ function wrap(s,maxW){const words=s.split(/(\s+)/),lines=[];let cur="";for(const
  const out=[];for(const ln of lines){if(tw(ln)<=maxW){out.push(ln);continue}let b="";for(const ch of ln){if(tw(b+ch)>maxW){out.push(b);b=ch}else b+=ch}if(b)out.push(b)}return out}
 function laneColor(key){if(!S.lane)return "#8a8f98";const i=G.laneIdx.get(key);return i==null?"#8a8f98":PAL[i%PAL.length]}
 function dateNum(s){return s?Date.parse(s)/864e5:NaN}
-function draw(){build();const nodes=[...G.nodes.values()],exts=[...G.ext.values()];let pos=new Map(),W=0,H=0,laneBands=[],axis=null,back=new Set();
+// 선 보기: off 끔 · sel 고른 상자의 앞뒤 사슬만 · hand 줄을 넘는 넘겨받기만 · all 전부
+function chainSets(sel){const upS=new Set(),dnS=new Set();if(sel==null)return{upS,dnS};const adjU=new Map(),adjD=new Map();
+ for(const e of G.edges.values()){(adjU.get(e.b)||adjU.set(e.b,[]).get(e.b)).push(e.a);(adjD.get(e.a)||adjD.set(e.a,[]).get(e.a)).push(e.b)}
+ const bfs=(start,adj,out)=>{const st=[start];while(st.length){const v=st.pop();for(const w of (adj.get(v)||[]))if(!out.has(w)&&w!==start){out.add(w);st.push(w)}}};bfs(sel,adjU,upS);bfs(sel,adjD,dnS);return{upS,dnS}}
+function edgeShown(e,sel,upS,dnS){if(S.lines==="off")return false;if(S.lines==="all")return true;if(S.lines==="hand")return !!e.cross;
+ if(sel==null)return false;return e.a===sel||e.b===sel||(upS.has(e.a)&&(upS.has(e.b)||e.b===sel))||(dnS.has(e.b)&&(dnS.has(e.a)||e.a===sel))}
+const LEGEND={gantt:'한 행 = 상자 하나 · 막대 = 실제 기간 · 행/막대 누름 = 앞(보라)·뒤(초록) 사슬과 그 선 · 두 번 누름 = 그 안으로 · 머리 행 누름 = 접기 · Ctrl+휠 = 가로 확대',
+ time:'상자 = 이름표(왼쪽 끝 = 시작일) · 회색 띠 = 실제 기간 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록) · 두 번 누름 = 그 안으로',
+ flow:'선행 순서로 층 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 빨간 점선 = 뭉친 뒤 거꾸로 가는 선 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록)'};
+function draw(){build();$("legend").innerHTML=LEGEND[S.layout];const gm=S.layout==="gantt";$("gantt").style.display=gm?"block":"none";svg.style.display=gm?"none":"block";
+ if(gm){$("axis").style.display="none";renderGantt();renderNow();if(S.sel!=null&&G.nodes.has(S.sel))renderNode(S.sel);else{S.sel=null;renderScope()}keepView=false;writeHash();return}
+ const nodes=[...G.nodes.values()],exts=[...G.ext.values()];let pos=new Map(),W=0,H=0,laneBands=[],axis=null,back=new Set();
  if(nodes.length){if(S.layout==="time")({W,H,laneBands,axis}=layoutTime(nodes,exts,pos));else({W,H,back}=layoutFlow(nodes,exts,pos))}
  drawn={w:Math.max(W,400),h:Math.max(H,200)};
  const chk=$("chk").checked;let s=`<defs><marker id="ar" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="context-stroke"/></marker></defs>`;
@@ -190,11 +217,9 @@ function draw(){build();const nodes=[...G.nodes.values()],exts=[...G.ext.values(
  for(const b of laneBands)s+=`<rect x="0" y="${b.y}" width="${W}" height="${b.h}" fill="${b.i%2?"rgba(127,127,127,.06)":"transparent"}"/><text x="8" y="${b.y+16}" font-size="12" font-weight="bold" fill="${b.color}">${esc(b.name)}</text>`;
  if(laneBands.length&&laneBands.labelW)s+=`<line x1="${laneBands.labelW-2}" y1="0" x2="${laneBands.labelW-2}" y2="${H}" stroke="var(--line)"/>`;
  AXIS=axis;if(axis){for(const t of axis.ticks)s+=`<line x1="${t.x}" y1="${axis.y}" x2="${t.x}" y2="${H}" stroke="var(--line)" stroke-dasharray="2 4"/>`}
- const sel=S.sel,upS=new Set(),dnS=new Set();
- if(sel!=null){const adjU=new Map(),adjD=new Map();for(const e of G.edges.values()){(adjU.get(e.b)||adjU.set(e.b,[]).get(e.b)).push(e.a);(adjD.get(e.a)||adjD.set(e.a,[]).get(e.a)).push(e.b)}
-  const bfs=(start,adj,out)=>{const st=[start];while(st.length){const v=st.pop();for(const w of (adj.get(v)||[]))if(!out.has(w)&&w!==start){out.add(w);st.push(w)}}};bfs(sel,adjU,upS);bfs(sel,adjD,dnS)}
+ const sel=S.sel,{upS,dnS}=chainSets(sel);
  const edgesSorted=[...G.edges.values()].sort((a,b)=>(a.cross?1:0)-(b.cross?1:0));
- for(const e of edgesSorted){const A=pos.get(e.a),B=pos.get(e.b);if(!A||!B)continue;
+ for(const e of edgesSorted){const A=pos.get(e.a),B=pos.get(e.b);if(!A||!B)continue;if(!edgeShown(e,sel,upS,dnS))continue;
   const isBack=back.has(e.a+">"+e.b);let col=e.ext?"var(--mut)":e.cross?"var(--hand)":"#999",wdt=Math.min(1+Math.log2(e.n),4);
   let cls="ed";if(sel!=null){const on=(e.a===sel||e.b===sel)||(upS.has(e.a)&&upS.has(e.b))||(dnS.has(e.a)&&dnS.has(e.b));if(!on)cls+=" dim";else{if(upS.has(e.a))col="var(--up)";if(dnS.has(e.b))col="var(--dn)"}}
   if(isBack)col="var(--hot)";
@@ -257,6 +282,51 @@ function layoutFlow(nodes,exts,pos){const ids=[...nodes.map(n=>n.id),...exts.map
  let x=30;const colX=[];cols.forEach((c,li)=>{colX[li]=x;x+=colW[li]+GX});const W=x+20;let H=0;
  cols.forEach((c,li)=>{let y=30,prevLane=null;for(const v of c){const b=boxes.get(v),n=G.nodes.get(v);if(n&&prevLane!=null&&n.lane!==prevLane)y+=16;if(n)prevLane=n.lane;pos.set(v,{x:colX[li],y,w:b.w,h:b.h,lines:b.lines,tx:colX[li]+(n&&S.lane?12:8),sub:b.sub});y+=b.h+12}H=Math.max(H,y)});
  return{W,H:H+20,back}}
+// ---- 간트 (한 행 = 상자 하나, 왼쪽 표·위 눈금 틀 고정 = CSS sticky, 막대 = 실제 기간) ----
+const RH=24;
+function renderGantt(){const g=$("gantt"),keep=keepView,st0=g.scrollTop,sl0=g.scrollLeft,oldW=g.scrollWidth;
+ const nodes=[...G.nodes.values()];if(!nodes.length){g.innerHTML='<div class="mut" style="padding:30px">거르기 조건에 맞는 업무가 없습니다.</div>';return}
+ if(!keep)S.ppd=null;
+ const ord=S.order==="start"?(a,b)=>((a.t.st?dateNum(a.t.st):1e12)-(b.t.st?dateNum(b.t.st):1e12))||ROWIDX.get(a.id)-ROWIDX.get(b.id):(a,b)=>ROWIDX.get(a.id)-ROWIDX.get(b.id);
+ const groups=S.lane?G.lanes.map(k=>({key:k,items:nodes.filter(n=>n.lane===k).sort(ord)})).filter(x=>x.items.length):[{key:"",items:nodes.slice().sort(ord)}];
+ const rows=[];for(const gr of groups){if(S.lane)rows.push({hdr:gr});if(!S.lane||!COLLAPSED.has(gr.key))for(const n of gr.items)rows.push({n})}
+ const dated=nodes.filter(n=>n.t.st&&n.t.fi),d0=dated.length?Math.min(...dated.map(n=>dateNum(n.t.st))):0,d1=dated.length?Math.max(...dated.map(n=>dateNum(n.t.fi))):30,span=Math.max(30,d1-d0+1);
+ const NW=Math.round(Math.min(380,Math.max(160,...nodes.map(n=>tw(n.t.name)+18)))),cols=[86,NW,84,84,54],TW=cols.reduce((a,b)=>a+b,0);
+ if(S.ppd==null)S.ppd=Math.max(0.05,(g.clientWidth-TW-40)/span);const ppd=S.ppd,BW=Math.ceil(span*ppd)+40,X=d=>10+(d-d0)*ppd;
+ const sel=S.sel,{upS,dnS}=chainSets(sel),rowOf=new Map();rows.forEach((r,i)=>{if(r.n)rowOf.set(r.n.id,i)});
+ const tmpl=`grid-template-columns:${cols.map(c=>c+"px").join(" ")}`;
+ // 왼쪽 표
+ let L=`<div class="gr0" style="${tmpl}"><span>WBS</span><span>작업 이름</span><span>시작</span><span>완료</span><span>기간</span></div>`,R="";
+ const left=[];for(const r of rows){if(r.hdr){const k=r.hdr.key;left.push(`<div class="gr0 ghd" data-h="${esc(k)}" style="grid-template-columns:${TW}px"><span><span style="color:${laneColor(k)}">${COLLAPSED.has(k)?"▸":"▾"}</span> ${esc(laneLabel(k))} <span class="mut">(${r.hdr.items.length})</span></span></div>`);continue}
+  const n=r.n,t=n.t,cls=n.id===sel?" on":upS.has(n.id)?" up":dnS.has(n.id)?" dn":"";
+  left.push(`<div class="gr0${cls}" data-n="${n.id}" style="${tmpl}" title="${esc(pathText(n.id))}"><span class="num" style="text-align:left">${esc(t.wbs)}</span><span>${esc(t.name)}</span><span class="num">${t.st||""}</span><span class="num">${t.fi||""}</span><span class="num">${t.dur??""}</span></div>`)}
+ // 위 눈금
+ const ticks=[];const yr0=new Date(d0*864e5).getUTCFullYear(),yr1=new Date(d1*864e5).getUTCFullYear();const monthStep=ppd*30>60?1:ppd*30>20?3:12;
+ for(let y=yr0;y<=yr1+1;y++)for(let m=0;m<12;m+=monthStep){const d=Date.UTC(y,m,1)/864e5;if(d<d0-31||d>d1+31)continue;ticks.push({x:X(d),label:m===0?String(y):`${String(m+1).padStart(2,"0")}`,major:m===0})}
+ let ax=`<svg width="${BW}" height="28">`;for(const t of ticks)ax+=`<line x1="${t.x}" y1="${t.major?8:18}" x2="${t.x}" y2="28" stroke="var(--mut)"/><text x="${t.x+3}" y="${t.major?18:24}" fill="var(--mut)" ${t.major?'font-weight="bold"':""}>${t.label}</text>`;ax+="</svg>";
+ // 막대·선
+ const H=rows.length*RH;let s=`<svg width="${BW}" height="${H}"><defs><marker id="gar" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L8,4L0,8z" fill="context-stroke"/></marker></defs>`;
+ for(const t of ticks)if(t.major)s+=`<line x1="${t.x}" y1="0" x2="${t.x}" y2="${H}" stroke="var(--line)"/>`;
+ const chk=$("chk").checked;
+ rows.forEach((r,i)=>{const y=i*RH;if(r.hdr){const it=r.hdr.items.filter(n=>n.t.st&&n.t.fi);if(!it.length)return;const a=Math.min(...it.map(n=>dateNum(n.t.st))),b=Math.max(...it.map(n=>dateNum(n.t.fi)));
+   s+=`<rect x="0" y="${y}" width="${BW}" height="${RH}" fill="rgba(127,127,127,.07)"/><rect x="${X(a)}" y="${y+9}" width="${Math.max(2,(b-a+1)*ppd)}" height="6" fill="var(--mut)"/>`;return}
+  const n=r.n,t=n.t;if(n.id===sel)s+=`<rect x="0" y="${y}" width="${BW}" height="${RH}" fill="var(--sel)" opacity=".5"/>`;if(!(t.st&&t.fi))return;
+  const x=X(dateNum(t.st)),w=Math.max(3,(dateNum(t.fi)-dateNum(t.st)+1)*ppd);
+  let fill="var(--band)";if(sel!=null){fill=n.id===sel?"var(--acc)":upS.has(n.id)?"var(--up)":dnS.has(n.id)?"var(--dn)":"var(--line)"}if(chk&&n.cr&&sel==null)fill="var(--hot)";
+  s+=`<rect class="gb" data-n="${n.id}" x="${x}" y="${y+5}" width="${w}" height="${RH-10}" rx="2" fill="${fill}" style="cursor:pointer"><title>${esc(t.name+"\n"+t.st+" ~ "+t.fi+" · "+(t.dur??"-")+"일"+(n.leaves>1?" · 하위 "+n.leaves:""))}</title></rect>`});
+ for(const e of G.edges.values()){if(e.ext)continue;const ia=rowOf.get(e.a),ib=rowOf.get(e.b);if(ia==null||ib==null)continue;if(!edgeShown(e,sel,upS,dnS))continue;
+  const A=G.nodes.get(e.a).t,B=G.nodes.get(e.b).t;if(!(A.fi&&B.st))continue;const x1=X(dateNum(A.fi)+1),y1=ia*RH+RH/2,x2=X(dateNum(B.st)),y2=ib*RH+RH/2;
+  let col=e.cross?"var(--hand)":"#8a8f98";if(sel!=null){if(upS.has(e.a)||e.b===sel&&!dnS.has(e.a))col="var(--up)";if(dnS.has(e.b)||e.a===sel)col="var(--dn)"}
+  const ym=y2+(y2>y1?-RH/2+3:RH/2-3);const d=x2>=x1+8?`M${x1},${y1} H${x1+5} V${y2} H${x2}`:`M${x1},${y1} H${x1+5} V${ym} H${x2-6} V${y2} H${x2}`;
+  s+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.3" marker-end="url(#gar)"/>`}
+ s+="</svg>";
+ g.innerHTML=`<div class="gg" style="grid-template-columns:${TW}px ${BW}px"><div class="gh gl">${L}</div><div class="gh">${ax}</div><div class="gl">${left.join("")}</div><div>${s}</div></div>`;
+ if(keep){g.scrollTop=st0;g.scrollLeft=oldW>0?sl0*(g.scrollWidth/oldW):sl0}else{g.scrollTop=0;g.scrollLeft=0}
+ g.querySelectorAll("[data-n]").forEach(el=>{el.onclick=ev=>{ev.stopPropagation();select(+el.dataset.n)};el.ondblclick=ev=>{ev.stopPropagation();const n=+el.dataset.n;if(T.get(n).kids.length)pathFilter(n)}});
+ g.querySelectorAll("[data-h]").forEach(el=>el.onclick=()=>{const k=el.dataset.h;COLLAPSED.has(k)?COLLAPSED.delete(k):COLLAPSED.add(k);keepView=true;draw()})}
+$("gantt").addEventListener("wheel",ev=>{if(!ev.ctrlKey)return;ev.preventDefault();ganttZoom(ev.deltaY>0?1/1.2:1.2)},{passive:false});
+$("gantt").addEventListener("click",ev=>{if(ev.target.closest("[data-n],[data-h]"))return;if(S.sel!=null){S.sel=null;keepView=true;draw()}});
+function ganttZoom(f){S.ppd=(S.ppd||1)*f;keepView=true;draw()}
 // ---- 확대·이동·눈금 고정 ----
 function setVB(){svg.setAttribute("viewBox",`${VB.x} ${VB.y} ${VB.w} ${VB.h}`);updateAxis()}
 function updateAxis(){const ax=$("axis");if(!AXIS){ax.style.display="none";return}ax.style.display="block";const r=svg.getBoundingClientRect(),k=VB.w/r.width,h=24*k;
@@ -268,7 +338,8 @@ let drag=null,dragged=false;
 svg.onmousedown=ev=>{drag={x:ev.clientX,y:ev.clientY,vx:VB.x,vy:VB.y};dragged=false};
 window.onmousemove=ev=>{if(!drag)return;if(Math.abs(ev.clientX-drag.x)+Math.abs(ev.clientY-drag.y)>3)dragged=true;const r=svg.getBoundingClientRect();VB.x=drag.vx-(ev.clientX-drag.x)*VB.w/r.width;VB.y=drag.vy-(ev.clientY-drag.y)*VB.h/r.height;setVB()};
 window.onmouseup=()=>{drag=null;setTimeout(()=>dragged=false,0)};
-$("zi").onclick=()=>zoom(1/1.3);$("zo").onclick=()=>zoom(1.3);$("zf").onclick=fit;window.onresize=fit;
+$("zi").onclick=()=>S.layout==="gantt"?ganttZoom(1.3):zoom(1/1.3);$("zo").onclick=()=>S.layout==="gantt"?ganttZoom(1/1.3):zoom(1.3);
+$("zf").onclick=()=>{if(S.layout==="gantt"){S.ppd=null;keepView=false;draw()}else fit()};window.onresize=()=>{if(S.layout!=="gantt")fit()};
 function select(n){S.sel=n;keepView=true;draw()}
 // ---- '지금 보기' 문장 · 보기 주소 ----
 function nowSentence(){const parts=[];for(let l=1;l<=5;l++){const f=S.f[l];if(!f)continue;const a=[...f];parts.push(a.length<=3?a.join("·"):`${LVNAME[l]} ${a.length}개`)}
@@ -276,8 +347,8 @@ function nowSentence(){const parts=[];for(let l=1;l<=5;l++){const f=S.f[l];if(!f
  s+=` 를 Lv${S.grain} ${LVNAME[S.grain]} 상자로`;s+=S.lane==="pick"?", 줄은 고른 항목별":S.lane?`, 줄은 ${LVNAME[S.lane]}별`:", 줄 없음";return s}
 function renderNow(){$("nowText").innerHTML=`<b style="font-weight:normal">지금 보기:</b> ${esc(nowSentence())} <span class="mut">— 상자 ${G.nodes.size} · 선 ${[...G.edges.values()].filter(e=>!e.ext).length}${G.handoff.size?" · 넘겨받기 "+[...G.handoff.values()].reduce((a,b)=>a+b,0):""} · 밖 ${G.inN}/${G.outN}${G.nodes.size>300?" · 상자가 많습니다 — 거르기를 더하면 읽기 쉽습니다":""}</span>`;
  $("stat").textContent=`뭉쳐진 안쪽 선 ${G.internal}`}
-function writeHash(){const st={f:{},p:[...S.picks],g:S.grain,l:S.lane,y:S.layout,c:$("chk").checked?1:0,e:$("ext").checked?1:0};for(let l=1;l<=5;l++)if(S.f[l])st.f[l]=[...S.f[l]];history.replaceState(null,"","#"+encodeURIComponent(JSON.stringify(st)))}
-function readHash(){try{const h=decodeURIComponent(location.hash.slice(1));if(!h)return false;const st=JSON.parse(h);for(let l=1;l<=5;l++)S.f[l]=st.f&&st.f[l]?new Set(st.f[l]):null;S.picks=new Set((st.p||[]).filter(n=>T.has(n)));S.grain=st.g||3;S.lane=st.l==="pick"?"pick":(+st.l||0);S.layout=st.y==="flow"?"flow":"time";$("chk").checked=!!st.c;$("ext").checked=st.e!==0;return true}catch(e){return false}}
+function writeHash(){const st={f:{},p:[...S.picks],g:S.grain,l:S.lane,y:S.layout,ln:S.lines,o:S.order,c:$("chk").checked?1:0,e:$("ext").checked?1:0};for(let l=1;l<=5;l++)if(S.f[l])st.f[l]=[...S.f[l]];history.replaceState(null,"","#"+encodeURIComponent(JSON.stringify(st)))}
+function readHash(){try{const h=decodeURIComponent(location.hash.slice(1));if(!h)return false;const st=JSON.parse(h);for(let l=1;l<=5;l++)S.f[l]=st.f&&st.f[l]?new Set(st.f[l]):null;S.picks=new Set((st.p||[]).filter(n=>T.has(n)));S.grain=st.g||3;S.lane=st.l==="pick"?"pick":(+st.l||0);S.layout=["gantt","time","flow"].includes(st.y)?st.y:"gantt";S.lines=["off","sel","hand","all"].includes(st.ln)?st.ln:"sel";S.order=st.o==="start"?"start":"wbs";$("chk").checked=!!st.c;$("ext").checked=st.e!==0;return true}catch(e){return false}}
 $("copyLink").onclick=()=>{writeHash();const url=location.href;const done=()=>{$("copyLink").textContent="복사됨 ✓";setTimeout(()=>$("copyLink").textContent="보기 주소 복사",1500)};
  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt("이 주소를 복사하세요",url));else prompt("이 주소를 복사하세요",url)};
 // ---- 패널 ----
@@ -320,6 +391,6 @@ function drawIs(){const c=$("fIs").value,rows=D.issues.filter(i=>!c||i[0]===c);$
  $("isT").innerHTML=h;$("isT").querySelectorAll(".lnk").forEach(x=>x.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+x.dataset.n)})}
 drawIs();
 for(const r of ROOTS)open.add(r);
-if(!readHash()){S.grain=Math.min(3,6);S.lane=1}
+if(!readHash()){S.grain=3;S.lane=1;S.layout="gantt";S.lines="sel"}
 syncControls();renderTree();draw();
 </script></body></html>

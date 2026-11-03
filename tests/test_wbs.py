@@ -132,7 +132,7 @@ def test_small_outputs(small, tmp_path):
     text = html.read_text(encoding="utf-8")
     assert "가나다" not in text and "<script src" not in text and "http" not in text.split("<script>")[1].replace("http://www.w3.org/2000/svg", "")
     for piece in ('id="tree"', 'id="filters"', 'id="grain"', 'id="lane"', 'id="quick"', 'data-v="time"', 'data-v="flow"', 'id="side"',
-                  'id="copyLink"', '"source":"small.xlsx"'):
+                  'id="copyLink"', 'data-v="gantt"', 'id="lines"', 'id="gantt"', '"source":"small.xlsx"'):
         assert piece in text, piece
 
 
