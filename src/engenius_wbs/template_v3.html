@@ -29,6 +29,9 @@ select,input{background:var(--card);color:var(--fg);border:1px solid var(--line)
 .chip{display:inline-flex;align-items:center;gap:4px;background:var(--chip);border-radius:9px;padding:0 8px;font-size:12px}.chip b{font-weight:normal;color:var(--mut)}.chip span.x{cursor:pointer;color:var(--mut)}
 #pop{position:absolute;z-index:9;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px;width:300px;max-height:60vh;display:none;flex-direction:column;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.15)}
 #pop .list{overflow:auto;flex:1;min-height:0}#pop label{display:flex;gap:6px;align-items:center;padding:2px 2px;cursor:pointer}#pop label:hover{background:var(--bg)}#pop label .ct{margin-left:auto;color:var(--mut);font-size:11px}
+#crumb{padding:4px 12px;border-bottom:1px solid var(--line);display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px}
+#crumb button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:2px 9px;border-radius:6px;cursor:pointer;font:inherit}#crumb button:disabled{opacity:.4;cursor:default}
+#crumb .cs{color:var(--mut)}#crumb .cur{font-weight:bold}
 #canvasWrap{flex:1;position:relative;overflow:hidden;background:var(--card)}
 #canvas{width:100%;height:100%;cursor:grab;display:block}#canvas:active{cursor:grabbing}
 #axis{position:absolute;left:0;top:0;width:100%;height:24px;pointer-events:none;background:var(--card);border-bottom:1px solid var(--line);display:none}
@@ -70,8 +73,9 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
     <span class="seg" id="order" title="간트 행 순서"><button data-v="wbs" class="on">WBS 순</button><button data-v="start">시작일 순</button></span>
     <span class="mut">선</span><span class="seg" id="lines"><button data-v="off">끔</button><button data-v="sel" class="on">고른 것만</button><button data-v="hand">넘겨받기만</button><button data-v="all">전부</button></span><span class="mut" id="stat"></span></div>
   </div>
+  <div id="crumb"><button id="navBack" title="바로 앞 보기로 (브라우저 뒤로·Alt+← 와 같음)">◀ 뒤로</button><button id="navUp" title="한 레벨 바깥으로 (빈 곳 두 번 누름과 같음)">↑ 바깥으로</button><span class="mut">위치</span><span id="crumbPath"></span></div>
   <div id="canvasWrap"><div id="gantt"></div><svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg><svg id="axis" xmlns="http://www.w3.org/2000/svg"></svg>
-   <div id="legend">상자 = 이름표(왼쪽 끝 = 시작일) · 회색 띠 = 실제 기간 · 회색 선 = 같은 줄 안 선행 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록) · 두 번 누름 = 그 안으로</div>
+   <div id="legend">상자 = 이름표(왼쪽 끝 = 시작일) · 회색 띠 = 실제 기간 · 회색 선 = 같은 줄 안 선행 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록) · 두 번 누름 = 그 안으로 · 빈 곳 두 번 누름 = 바깥으로</div>
    <div id="zoom"><button id="zi" title="확대">+</button><button id="zo" title="축소">−</button><button id="zf" title="맞춤">⌂</button></div>
   </div>
   <div id="now"><span id="nowText"></span><span class="lnk" id="copyLink">보기 주소 복사</span></div>
@@ -117,7 +121,8 @@ function renderTree(){const el=$("treeBody");let h="";const rec=(list,d)=>{for(c
  el.querySelectorAll(".tg").forEach(x=>x.onclick=ev=>{ev.stopPropagation();const n=+x.dataset.tg;open.has(n)?open.delete(n):open.add(n);renderTree()});
  el.querySelectorAll("input[data-pk]").forEach(x=>{x.onclick=ev=>ev.stopPropagation();x.onchange=()=>{const n=+x.dataset.pk;x.checked?S.picks.add(n):S.picks.delete(n);if(S.picks.size&&S.lane!=="pick"){S.lane="pick"}if(!S.picks.size&&S.lane==="pick")S.lane=0;S.sel=null;syncControls();draw()}});
  el.querySelectorAll(".tn").forEach(x=>x.onclick=()=>pathFilter(+x.dataset.n))}
-function pathFilter(no){const t=T.get(no);const p=path(t.kids.length?no:t.par);for(let l=1;l<=5;l++)S.f[l]=null;for(const x of p)if(x.lv<=5)S.f[x.lv]=new Set([x.name]);
+function pathFilter(no){nav(()=>pathFilterRaw(no))}
+function pathFilterRaw(no){const t=T.get(no);const p=path(t.kids.length?no:t.par);for(let l=1;l<=5;l++)S.f[l]=null;for(const x of p)if(x.lv<=5)S.f[x.lv]=new Set([x.name]);
  const L=p[p.length-1].lv;S.grain=Math.min(6,L+2);S.lane=L+1<S.grain?L+1:0;S.picks.clear();S.sel=null;for(const x of p)open.add(x.no);
  syncControls();renderTree();draw();if(!t.kids.length)select(no)}
 $("pickClear").onclick=()=>{S.picks.clear();if(S.lane==="pick")S.lane=0;syncControls();renderTree();draw()};
@@ -157,12 +162,13 @@ function closePop(){$("pop").style.display="none";popLv=0}
 document.addEventListener("mousedown",ev=>{if($("pop").style.display==="flex"&&!$("pop").contains(ev.target)&&!ev.target.closest(".fb"))closePop()});
 // 빠른 보기
 function firstName(l){const f=S.f[l];if(f&&f.size)return [...f][0];const e=[...NAMES[l].entries()].sort((a,b)=>a[1].row-b[1].row)[0];return e?e[0]:null}
-$("quick").querySelectorAll("button[data-q]").forEach(b=>b.onclick=()=>{const q=b.dataset.q;S.sel=null;S.picks.clear();
+$("quick").querySelectorAll("button[data-q]").forEach(b=>b.onclick=()=>nav(()=>quickView(b)));
+function quickView(b){const q=b.dataset.q;S.sel=null;S.picks.clear();
  if(q==="phase"){for(let l=1;l<=5;l++)S.f[l]=null;const n=firstName(3);S.f[3]=n?new Set([n]):null;S.grain=5;S.lane=4}
  else if(q==="disc"){for(let l=1;l<=5;l++)S.f[l]=null;const n=firstName(4);S.f[4]=n?new Set([n]):null;S.grain=5;S.lane=3}
  else if(q==="level"){for(let l=1;l<=5;l++)S.f[l]=null;S.grain=4;S.lane=0}
  else if(q==="picks"){for(let l=1;l<=5;l++)S.f[l]=null;S.lane=0;$("side").innerHTML='<div class="mut">왼쪽 트리에서 모아 볼 항목들을 체크하세요 — 레벨이 달라도 됩니다. 체크하면 줄이 "고른 항목별"로 바뀝니다.</div>'}
- syncControls();renderTree();draw();if(q==="phase")openPop(3,$("filters").querySelector('[data-l="3"]'));if(q==="disc")openPop(4,$("filters").querySelector('[data-l="4"]'))});
+ syncControls();renderTree();draw();if(q==="phase")openPop(3,$("filters").querySelector('[data-l="3"]'));if(q==="disc")openPop(4,$("filters").querySelector('[data-l="4"]'))}
 // ---- 뭉치기 ----
 let G=null;
 function laneKeyOf(no){if(S.lane==="pick"){for(const p of S.picks)if(anc(no,T.get(p).lv)===p)return "p"+p;return "p0"}if(!S.lane)return "";const a=ancExact(no,S.lane);return a==null?"":T.get(a).name}
@@ -204,8 +210,8 @@ function chainSets(sel){const upS=new Set(),dnS=new Set();if(sel==null)return{up
  const bfs=(start,adj,out)=>{const st=[start];while(st.length){const v=st.pop();for(const w of (adj.get(v)||[]))if(!out.has(w)&&w!==start){out.add(w);st.push(w)}}};bfs(sel,adjU,upS);bfs(sel,adjD,dnS);return{upS,dnS}}
 function edgeShown(e,sel,upS,dnS){if(S.lines==="off")return false;if(S.lines==="all")return true;if(S.lines==="hand")return !!e.cross;
  if(sel==null)return false;return e.a===sel||e.b===sel||(upS.has(e.a)&&(upS.has(e.b)||e.b===sel))||(dnS.has(e.b)&&(dnS.has(e.a)||e.a===sel))}
-const LEGEND={gantt:'한 행 = 상자 하나 · 막대 = 실제 기간 · 행/막대 누름 = 앞(보라)·뒤(초록) 사슬과 그 선 · 두 번 누름 = 그 안으로 · 머리 행 누름 = 접기 · Ctrl+휠 = 가로 확대',
- time:'상자 = 이름표(왼쪽 끝 = 시작일) · 회색 띠 = 실제 기간 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록) · 두 번 누름 = 그 안으로',
+const LEGEND={gantt:'한 행 = 상자 하나 · 막대 = 실제 기간 · 행/막대 누름 = 앞(보라)·뒤(초록) 사슬과 그 선 · 두 번 누름 = 그 안으로 · 빈 곳 두 번 누름 = 바깥으로 · 머리 행 누름 = 접기 · Ctrl+휠 = 가로 확대',
+ time:'상자 = 이름표(왼쪽 끝 = 시작일) · 회색 띠 = 실제 기간 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록) · 두 번 누름 = 그 안으로 · 빈 곳 두 번 누름 = 바깥으로',
  flow:'선행 순서로 층 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 빨간 점선 = 뭉친 뒤 거꾸로 가는 선 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록)'};
 function draw(){build();$("legend").innerHTML=LEGEND[S.layout];const gm=S.layout==="gantt";$("gantt").style.display=gm?"block":"none";svg.style.display=gm?"none":"block";
  if(gm){$("axis").style.display="none";renderGantt();renderNow();if(S.sel!=null&&G.nodes.has(S.sel))renderNode(S.sel);else{S.sel=null;renderScope()}keepView=false;writeHash();return}
@@ -241,7 +247,7 @@ function draw(){build();$("legend").innerHTML=LEGEND[S.layout];const gm=S.layout
  svg.innerHTML=s;
  svg.querySelectorAll("g[data-n]").forEach(g=>{g.onclick=ev=>{ev.stopPropagation();if(!dragged)select(+g.dataset.n)};g.ondblclick=ev=>{ev.stopPropagation();const n=+g.dataset.n;if(T.get(n).kids.length)pathFilter(n)}});
  svg.querySelectorAll("g[data-x]").forEach(g=>{g.ondblclick=ev=>{ev.stopPropagation();pathFilter(+g.dataset.x)}});
- svg.onclick=()=>{if(dragged)return;if(S.sel!=null){S.sel=null;keepView=true;draw()}};
+ svg.onclick=()=>{if(dragged)return;if(S.sel!=null){S.sel=null;keepView=true;draw()}};svg.ondblclick=()=>{if(!dragged)goUp()};
  renderNow();if(sel!=null)renderNode(sel);else renderScope();
  if(!keepView)fit();keepView=false;writeHash()}
 function nodeBox(n,maxW){const lines=wrap(n.t.name,maxW-16),w=Math.max(90,Math.min(maxW,Math.max(...lines.map(tw))+16)),sub=`${n.t.dur??"-"}일${n.leaves>1?" · 하위 "+n.leaves:""}`;return{lines,w,h:14+lines.length*15+6+(sub?12:0),sub}}
@@ -325,6 +331,7 @@ function renderGantt(){const g=$("gantt"),keep=keepView,st0=g.scrollTop,sl0=g.sc
  g.querySelectorAll("[data-n]").forEach(el=>{el.onclick=ev=>{ev.stopPropagation();select(+el.dataset.n)};el.ondblclick=ev=>{ev.stopPropagation();const n=+el.dataset.n;if(T.get(n).kids.length)pathFilter(n)}});
  g.querySelectorAll("[data-h]").forEach(el=>el.onclick=()=>{const k=el.dataset.h;COLLAPSED.has(k)?COLLAPSED.delete(k):COLLAPSED.add(k);keepView=true;draw()})}
 $("gantt").addEventListener("wheel",ev=>{if(!ev.ctrlKey)return;ev.preventDefault();ganttZoom(ev.deltaY>0?1/1.2:1.2)},{passive:false});
+$("gantt").addEventListener("dblclick",ev=>{if(ev.target.closest("[data-n],[data-h]"))return;goUp()});
 $("gantt").addEventListener("click",ev=>{if(ev.target.closest("[data-n],[data-h]"))return;if(S.sel!=null){S.sel=null;keepView=true;draw()}});
 function ganttZoom(f){S.ppd=(S.ppd||1)*f;keepView=true;draw()}
 // ---- 확대·이동·눈금 고정 ----
@@ -347,7 +354,7 @@ function nowSentence(){const parts=[];for(let l=1;l<=5;l++){const f=S.f[l];if(!f
  s+=` 를 Lv${S.grain} ${LVNAME[S.grain]} 상자로`;s+=S.lane==="pick"?", 줄은 고른 항목별":S.lane?`, 줄은 ${LVNAME[S.lane]}별`:", 줄 없음";return s}
 function renderNow(){$("nowText").innerHTML=`<b style="font-weight:normal">지금 보기:</b> ${esc(nowSentence())} <span class="mut">— 상자 ${G.nodes.size} · 선 ${[...G.edges.values()].filter(e=>!e.ext).length}${G.handoff.size?" · 넘겨받기 "+[...G.handoff.values()].reduce((a,b)=>a+b,0):""} · 밖 ${G.inN}/${G.outN}${G.nodes.size>300?" · 상자가 많습니다 — 거르기를 더하면 읽기 쉽습니다":""}</span>`;
  $("stat").textContent=`뭉쳐진 안쪽 선 ${G.internal}`}
-function writeHash(){const st={f:{},p:[...S.picks],g:S.grain,l:S.lane,y:S.layout,ln:S.lines,o:S.order,c:$("chk").checked?1:0,e:$("ext").checked?1:0};for(let l=1;l<=5;l++)if(S.f[l])st.f[l]=[...S.f[l]];history.replaceState(null,"","#"+encodeURIComponent(JSON.stringify(st)))}
+function writeHash(){const st={f:{},p:[...S.picks],g:S.grain,l:S.lane,y:S.layout,ln:S.lines,o:S.order,c:$("chk").checked?1:0,e:$("ext").checked?1:0};for(let l=1;l<=5;l++)if(S.f[l])st.f[l]=[...S.f[l]];try{history.replaceState(history.state||{d:0},"","#"+encodeURIComponent(JSON.stringify(st)))}catch(e){}renderCrumb()}
 function readHash(){try{const h=decodeURIComponent(location.hash.slice(1));if(!h)return false;const st=JSON.parse(h);for(let l=1;l<=5;l++)S.f[l]=st.f&&st.f[l]?new Set(st.f[l]):null;S.picks=new Set((st.p||[]).filter(n=>T.has(n)));S.grain=st.g||3;S.lane=st.l==="pick"?"pick":(+st.l||0);S.layout=["gantt","time","flow"].includes(st.y)?st.y:"gantt";S.lines=["off","sel","hand","all"].includes(st.ln)?st.ln:"sel";S.order=st.o==="start"?"start":"wbs";$("chk").checked=!!st.c;$("ext").checked=st.e!==0;return true}catch(e){return false}}
 $("copyLink").onclick=()=>{writeHash();const url=location.href;const done=()=>{$("copyLink").textContent="복사됨 ✓";setTimeout(()=>$("copyLink").textContent="보기 주소 복사",1500)};
  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt("이 주소를 복사하세요",url));else prompt("이 주소를 복사하세요",url)};
@@ -390,7 +397,21 @@ function drawIs(){const c=$("fIs").value,rows=D.issues.filter(i=>!c||i[0]===c);$
  for(const i of rows.slice(0,3000))h+=`<tr><td class="${i[1]==="오류"?"err":""}">${i[1]}</td><td>${i[0]}</td><td>${esc(i[2])}</td><td>${i[3]!=null&&T.has(i[3])?`<span class="lnk" data-n="${i[3]}">${i[3]}</span>`:(i[3]??"")}</td><td>${esc(i[4])}</td><td>${esc(i[5])}</td></tr>`;
  $("isT").innerHTML=h;$("isT").querySelectorAll(".lnk").forEach(x=>x.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+x.dataset.n)})}
 drawIs();
+// ---- 안으로·바깥으로·뒤로 ----
+function navDepth(){return(history.state&&history.state.d)||0}
+function nav(fn){try{history.pushState({d:navDepth()+1},"",location.href)}catch(e){}fn()}
+function setDefaultGrain(L){if(!L){S.grain=3;S.lane=1}else{S.grain=Math.min(6,L+2);S.lane=L+1<S.grain?L+1:0}}
+function deepestF(){for(let l=5;l>=1;l--)if(S.f[l])return l;return 0}
+function upTo(k){nav(()=>{for(let l=k+1;l<=5;l++)S.f[l]=null;S.picks.clear();S.sel=null;setDefaultGrain(k);syncControls();renderTree();draw()})}
+function goUp(){if(S.picks.size&&!deepestF()){nav(()=>{S.picks.clear();S.sel=null;setDefaultGrain(0);syncControls();renderTree();draw()});return}const k=deepestF();if(k)upTo(k-1)}
+function renderCrumb(){let h=`<span class="lnk" data-up="0">전체</span>`;for(let l=1;l<=5;l++){const f=S.f[l];if(!f)continue;const txt=f.size===1?[...f][0]:`Lv${l} ${f.size}개`;h+=` <span class="cs">›</span> `+(l===deepestF()?`<span class="cur">${esc(txt)}</span>`:`<span class="lnk" data-up="${l}">${esc(txt)}</span>`)}
+ if(S.picks.size)h+=` <span class="cs">›</span> <span class="cur">트리에서 고른 ${S.picks.size}개</span>`;
+ const el=$("crumbPath");el.innerHTML=h;el.querySelectorAll("[data-up]").forEach(x=>x.onclick=()=>upTo(+x.dataset.up));
+ $("navUp").disabled=!deepestF()&&!S.picks.size;$("navBack").disabled=navDepth()<1}
+$("navUp").onclick=goUp;$("navBack").onclick=()=>{if(navDepth()>0)history.back()};
+window.addEventListener("popstate",()=>{closePop();S.sel=null;if(!readHash()){for(let l=1;l<=5;l++)S.f[l]=null;S.picks.clear();setDefaultGrain(0)}syncControls();renderTree();draw()});
 for(const r of ROOTS)open.add(r);
+try{if(!history.state)history.replaceState({d:0},"",location.href)}catch(e){}
 if(!readHash()){S.grain=3;S.lane=1;S.layout="gantt";S.lines="sel"}
 syncControls();renderTree();draw();
 </script></body></html>
