@@ -21,7 +21,7 @@ section{display:none;flex:1;min-height:0}section.on{display:flex}
 #main{flex:1;min-width:0;display:flex;flex-direction:column}
 #quick{padding:6px 12px;border-bottom:1px solid var(--line);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #quick button,#ctl button.fb{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:3px 9px;border-radius:6px;cursor:pointer;font:inherit}
-#ctl{padding:6px 12px;display:grid;grid-template-columns:64px minmax(0,1fr);gap:4px 8px;align-items:center;border-bottom:1px solid var(--line)}
+#ctl{padding:6px 12px;display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 8px;align-items:center;border-bottom:1px solid var(--line)}
 #ctl .k{color:var(--mut)}#ctl .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #ctl button.fb.on{border-color:var(--acc);background:var(--chip)}
 select,input{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:3px 6px;font:inherit}
@@ -32,7 +32,7 @@ select,input{background:var(--card);color:var(--fg);border:1px solid var(--line)
 #crumb{padding:4px 12px;border-bottom:1px solid var(--line);display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px}
 #crumb button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:2px 9px;border-radius:6px;cursor:pointer;font:inherit}#crumb button:disabled{opacity:.4;cursor:default}
 #crumb .cs{color:var(--mut)}#crumb .cur{font-weight:bold}
-#canvasWrap{flex:1;position:relative;overflow:hidden;background:var(--card)}
+#canvasWrap{flex:1;min-height:260px;position:relative;overflow:hidden;background:var(--card)}
 #canvas{width:100%;height:100%;cursor:grab;display:block}#canvas:active{cursor:grabbing}
 #axis{position:absolute;left:0;top:0;width:100%;height:24px;pointer-events:none;background:var(--card);border-bottom:1px solid var(--line);display:none}
 #gantt{position:absolute;inset:0;overflow:auto;display:none;background:var(--card)}
@@ -52,9 +52,18 @@ select,input{background:var(--card);color:var(--fg);border:1px solid var(--line)
 .lnk{color:var(--acc);cursor:pointer;text-decoration:underline}.pill{display:inline-block;padding:0 6px;border-radius:9px;background:var(--line);font-size:11px;margin-right:4px}.err{color:var(--hot);font-weight:bold}
 #is.on{flex-direction:column;padding:8px 14px;overflow:auto}#is table{border-collapse:collapse}#is td,#is th{border:1px solid var(--line);padding:3px 6px;text-align:left}#is th{background:var(--card);position:sticky;top:0}
 svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{opacity:.18}.ed.dim{opacity:.08}.nd.sel rect.bx{stroke-width:3}
+#mh.on{flex-direction:column}
+#mhTop,#mhStatRow,#mhCrumb{padding:6px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+#mhChartWrap{height:42vh;min-height:200px;background:var(--card);border-bottom:1px solid var(--line)}#mhChart{width:100%;height:100%;display:block}#mhChart g.mb{cursor:pointer}
+#mhCrumb button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:2px 9px;border-radius:6px;cursor:pointer;font:inherit}#mhCrumb button:disabled{opacity:.4;cursor:default}#mhCrumb .cs{color:var(--mut)}#mhCrumb .cur{font-weight:bold}
+#mhComp{flex:1;min-height:120px;overflow:auto;padding:6px 12px;background:var(--card)}.mhh{padding:4px 2px 8px}
+.mhr{display:grid;grid-template-columns:minmax(140px,300px) minmax(60px,1fr) 90px 56px;gap:10px;align-items:center;padding:3px 4px;cursor:pointer;border-bottom:1px solid rgba(127,127,127,.12)}.mhr:hover{background:var(--bg)}.mhr.on{background:var(--sel)}
+.mhr .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mhr .bar i{display:block;height:12px;background:var(--band);border-radius:2px}.mhr.on .bar i{background:var(--acc)}
+.mhr .v,.mhr .p{text-align:right;font-variant-numeric:tabular-nums}.mhr .p{color:var(--mut)}
+#mhNote{padding:5px 12px;border-top:1px solid var(--line)}
 </style></head><body>
 <header><h1>__TITLE__</h1><span class="mut" id="meta"></span></header>
-<nav><button data-t="gr" class="on">① 선후 관계 보기</button><button data-t="is">② 검사</button></nav>
+<nav><button data-t="gr" class="on">① 선후 관계 보기</button><button data-t="is">② 검사</button><button data-t="mh">③ 월별 공수</button></nav>
 <section id="gr" class="on">
  <div id="tree"><div class="bar"><input type="text" id="q" placeholder="찾기: 번호 · WBS · 이름 일부"><button id="pickClear" title="트리 체크 모두 해제" style="font:inherit">체크 해제</button></div><div id="hits"></div><div id="treeBody"></div></div>
  <div id="main">
@@ -63,15 +72,13 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
    <button data-q="disc" title="기술 분야 하나를 고르고, 모든 구성품·모든 단계를 모아 줄은 개발 단계별">분야 하나 · 모든 단계</button>
    <button data-q="level" title="거르기 없이 한 레벨의 요소 전부를 줄 없이">한 레벨 전체 · 줄 없음</button>
    <button data-q="picks" title="왼쪽 트리에서 체크한 항목들만 모아, 줄은 고른 항목별">트리에서 고른 것</button>
-   <span style="flex:1"></span><label><input type="checkbox" id="chk"> 가장 긴 사슬</label><label><input type="checkbox" id="ext" checked> 밖 출입</label>
+   <span style="flex:1"></span><label title="간트의 묶음 행에 그 아래 마일스톤을 작은 ▽ 로"><input type="checkbox" id="msk" checked> 하부 마일스톤</label><label><input type="checkbox" id="chk"> 가장 긴 사슬</label><label><input type="checkbox" id="ext" checked> 밖 출입</label>
   </div>
   <div id="ctl">
    <span class="k">거르기</span><div class="row" id="filters"></div>
-   <span class="k">묶기</span><div class="row"><select id="grain"></select><span class="mut">상자 하나 = 이 레벨 요소 하나</span></div>
-   <span class="k">줄 나누기</span><div class="row"><select id="lane"></select><span class="mut">가로 띠를 어느 레벨 이름으로 나눌지</span></div>
-   <span class="k">배치</span><div class="row"><span class="seg" id="layout"><button data-v="gantt" class="on">간트</button><button data-v="time">시간표</button><button data-v="flow">흐름도</button></span>
+   <span class="k">보기</span><div class="row"><span class="mut">묶기</span><select id="grain" title="상자(간트 한 행) 하나 = 이 레벨 요소 하나"></select><span class="mut">줄</span><select id="lane" title="가로 띠(간트 머리 행)를 어느 레벨 이름으로 나눌지"></select><span class="seg" id="layout"><button data-v="gantt" class="on">간트</button><button data-v="time">시간표</button><button data-v="flow">흐름도</button></span>
     <span class="seg" id="order" title="간트 행 순서"><button data-v="wbs" class="on">WBS 순</button><button data-v="start">시작일 순</button></span>
-    <span class="mut">선</span><span class="seg" id="lines"><button data-v="off">끔</button><button data-v="sel" class="on">고른 것만</button><button data-v="hand">넘겨받기만</button><button data-v="all">전부</button></span><span class="mut" id="stat"></span></div>
+    <span style="white-space:nowrap"><span class="mut">선 </span><span class="seg" id="lines"><button data-v="off">끔</button><button data-v="sel" class="on">고른 것만</button><button data-v="hand">넘겨받기만</button><button data-v="all">전부</button></span></span><span class="mut" id="stat"></span></div>
   </div>
   <div id="crumb"><button id="navBack" title="바로 앞 보기로 (브라우저 뒤로·Alt+← 와 같음)">◀ 뒤로</button><button id="navUp" title="한 레벨 바깥으로 (빈 곳 두 번 누름과 같음)">↑ 바깥으로</button><span class="mut">위치</span><span id="crumbPath"></span></div>
   <div id="canvasWrap"><div id="gantt"></div><svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg><svg id="axis" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -82,6 +89,15 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
  </div>
  <div id="side"></div>
  <div id="pop"></div>
+</section>
+<section id="mh">
+ <div id="mhTop"><span class="mut">범위</span><span class="seg" id="mhScope"><button data-v="view" class="on">보기 탭 거르기 따름</button><button data-v="all">전체</button></span><span class="mut" id="mhScopeText"></span>
+  <span style="flex:1"></span><span class="mut">묶음</span><span class="seg" id="mhBin"><button data-v="m" class="on">월</button><button data-v="q">분기</button><button data-v="y">연</button></span></div>
+ <div id="mhStatRow"><span id="mhStat"></span></div>
+ <div id="mhChartWrap"><svg id="mhChart" xmlns="http://www.w3.org/2000/svg"></svg></div>
+ <div id="mhCrumb"><button id="mhBack" title="바로 앞 보기로">◀ 뒤로</button><button id="mhUp" title="한 단계 바깥으로 (그래프 빈 곳 두 번 누름과 같음)">↑ 바깥으로</button><span id="mhPath"></span><span style="flex:1"></span><button id="mhFit" title="겹쳐 본 항목의 최대치에 세로축을 맞춤 (전체 막대는 숨김)">맞춤</button></div>
+ <div id="mhComp"></div>
+ <div id="mhNote" class="mut">막대 = Man Hours 합 — 업무의 Man Hours 를 시작~완료 평일에 고르게 나눔 (휴일·사내 달력 모름, 총합은 같음) · 아래에 MH 가 적힌 업무가 있으면 아래 것만 씀 (요약 행 합을 두 번 세지 않음) · 세로축 = 보이는 범위의 최대치에 맞춤 · <span id="mhInfo"></span></div>
 </section>
 <section id="is">
  <div style="margin-bottom:6px">문제 코드 <select id="fIs"></select> <span class="mut" id="isN"></span></div>
@@ -95,12 +111,20 @@ for(const t of T.values()){if(t.par!=null&&T.has(t.par))T.get(t.par).kids.push(t
 for(const e of D.edges){(PRE.get(e[1])||PRE.set(e[1],[]).get(e[1])).push(e);(SUC.get(e[0])||SUC.set(e[0],[]).get(e[0])).push(e)}
 const LEAF=new Map(),MH=new Map(),CR=new Map(),LEAVES=[];
 (function roll(list){for(const no of list){const t=T.get(no);if(!t.kids.length){LEAF.set(no,1);MH.set(no,t.mh||0);CR.set(no,t.cr);LEAVES.push(no);continue}roll(t.kids);let l=0,m=0,c=0;for(const k of t.kids){l+=LEAF.get(k);m+=MH.get(k);c=c||CR.get(k)}LEAF.set(no,l);MH.set(no,m);CR.set(no,c)}})(ROOTS);
+for(const t of T.values())t.ms=!t.kids.length&&t.dur===0;
+// 요약 작업의 하위 범위 (날짜 있는 하위 업무의 최소 시작·최대 완료 — 간트 막대) · 그 아래 마일스톤
+const SPAN=new Map(),MSU=new Map();
+(function sp(list){for(const no of list){const t=T.get(no);if(!t.kids.length)continue;sp(t.kids);let a=null,b=null;for(const k of t.kids){const kt=T.get(k),r=kt.kids.length?SPAN.get(k):(kt.st&&kt.fi&&kt.st<=kt.fi?[kt.st,kt.fi]:null);if(!r)continue;if(!a||r[0]<a)a=r[0];if(!b||r[1]>b)b=r[1]}if(a)SPAN.set(no,[a,b])}})(ROOTS);
+for(const no of LEAVES)if(T.get(no).ms){let p=T.get(no).par;while(p!=null&&T.has(p)){(MSU.get(p)||MSU.set(p,[]).get(p)).push(no);p=T.get(p).par}}
+for(const l of MSU.values())l.sort((a,b)=>(T.get(a).st||"").localeCompare(T.get(b).st||""));
+function barDates(n){const sp=n.t.kids.length?SPAN.get(n.id):null;return sp||[n.t.st,n.t.fi]}
+function edgeType(e){const s=new Set(e.ex.map(x=>(/^(SS|FF|SF)/.exec(x[2])||[0,"FS"])[1]));return s.size===1?[...s][0]:"FS"}
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const $=id=>document.getElementById(id);
 const LVNAME={1:"구성품",2:"최상위 업무",3:"개발 단계",4:"기술 분야",5:"상위 기술 업무",6:"하위 기술 업무"};
 const PAL=["#4e79a7","#f28e2b","#59a14f","#e15759","#76b7b2","#edc948","#b07aa1","#ff9da7","#9c755f","#bab0ac","#1f77b4","#2ca02c","#d62728","#9467bd","#8c564b","#17becf"];
 $("meta").textContent=`${D.source} · 업무 ${D.tasks.length.toLocaleString()} · 선행 관계 ${D.edges.length.toLocaleString()} · 순환 ${D.cycles} · 가장 긴 사슬 ${D.project_days} 근무일(달력 없는 근사) · 문제 ${D.issues.length.toLocaleString()}`;
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));document.querySelectorAll("section").forEach(s=>s.classList.toggle("on",s.id===b.dataset.t))});
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));document.querySelectorAll("section").forEach(s=>s.classList.toggle("on",s.id===b.dataset.t));if(b.dataset.t==="mh")renderMH()});
 function anc(no,lv){let t=T.get(no);while(t&&t.lv>lv&&t.par!=null)t=T.get(t.par);return t?t.no:no}
 function ancExact(no,lv){const a=anc(no,lv);return T.get(a).lv===lv?a:null}
 function path(no){const p=[];let t=T.get(no);while(t){p.unshift(t);t=t.par!=null?T.get(t.par):null}return p}
@@ -131,7 +155,7 @@ $("q").oninput=()=>{const q=$("q").value.trim().toLowerCase();if(!q){$("hits").i
  $("hits").innerHTML=out.map(t=>`<div data-n="${t.no}"><span class="pill">Lv${t.lv}</span>${t.no} · ${esc(t.name)}<span class="p">${esc(path(t.no).slice(0,-1).map(x=>x.name).join(" › "))}</span></div>`).join("")||'<div class="mut">없음</div>';
  $("hits").querySelectorAll("div[data-n]").forEach(d=>d.onclick=()=>{$("hits").innerHTML="";$("q").value="";pathFilter(+d.dataset.n)})};
 // ---- 조작 줄 ----
-function syncControls(){const fl=$("filters");let h="";for(let l=1;l<=5;l++){const f=S.f[l];const txt=!f?"전체":f.size===1?[...f][0]:`${f.size}개`;h+=`<button class="fb${f?" on":""}" data-l="${l}">Lv${l} ${LVNAME[l]} · ${esc(txt)} ▾</button>`}
+function syncControls(){const fl=$("filters");let h="";for(let l=1;l<=5;l++){const f=S.f[l];const txt=!f?"전체":f.size===1?[...f][0]:`${f.size}개`;h+=`<button class="fb${f?" on":""}" data-l="${l}" title="Lv${l} ${LVNAME[l]} · ${esc(txt)}">Lv${l} ${f?esc(txt):LVNAME[l]} ▾</button>`}
  h+=`<span class="mut">${S.picks.size?`트리 체크 ${S.picks.size}개`:"트리 체크 0개"}</span>`;fl.innerHTML=h;fl.querySelectorAll(".fb").forEach(b=>b.onclick=ev=>openPop(+b.dataset.l,b));
  const minG=Math.max(2,deepestFilter()+1,...[...S.picks].map(p=>T.get(p).lv+1));if(S.grain<minG)S.grain=minG;
  const g=$("grain");g.innerHTML="";for(let l=Math.max(2,1);l<=6;l++)g.innerHTML+=`<option value="${l}"${l===S.grain?" selected":""}${l<minG?" disabled":""}>Lv${l} ${LVNAME[l]}</option>`;
@@ -145,7 +169,7 @@ $("order").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.order=b.datase
 $("grain").onchange=()=>{S.grain=+$("grain").value;if(typeof S.lane==="number"&&S.lane>=S.grain)S.lane=0;S.sel=null;syncControls();draw()};
 $("lane").onchange=()=>{const v=$("lane").value;S.lane=v==="pick"?"pick":+v;S.sel=null;draw()};
 $("layout").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.layout=b.dataset.v;syncControls();draw()});
-$("chk").onchange=draw;$("ext").onchange=draw;
+$("chk").onchange=draw;$("ext").onchange=draw;$("msk").onchange=()=>{keepView=true;draw()};
 // 거르기 팝업 — 이름 체크 목록 (잎 수 · 같은 이름 요소 수)
 let popLv=0;
 function openPop(l,btn){if(popLv===l&&$("pop").style.display==="flex"){closePop();return}popLv=l;const pop=$("pop"),r=btn.getBoundingClientRect(),host=$("gr").getBoundingClientRect();
@@ -175,7 +199,7 @@ function laneKeyOf(no){if(S.lane==="pick"){for(const p of S.picks)if(anc(no,T.ge
 function laneLabel(key){if(!key)return "";if(key[0]==="p")return key==="p0"?"(고른 항목 밖)":T.get(+key.slice(1)).name;return key}
 function build(){const g=S.grain,leaves=LEAVES.filter(passLeaf),lset=new Set(leaves);
  const nodes=new Map(),nodeOf=new Map(),laneIdx=new Map(),lanes=[];
- for(const lf of leaves){const n=anc(lf,g);nodeOf.set(lf,n);if(!nodes.has(n)){const key=laneKeyOf(n);if(S.lane&&!laneIdx.has(key)){laneIdx.set(key,lanes.length);lanes.push(key)}nodes.set(n,{id:n,t:T.get(n),lane:key,leaves:0,mh:0,cr:CR.get(n)})}const nd=nodes.get(n);nd.leaves++;nd.mh+=T.get(lf).mh||0}
+ for(const lf of leaves){const n=anc(lf,g);nodeOf.set(lf,n);if(!nodes.has(n)){const key=laneKeyOf(n);if(S.lane&&!laneIdx.has(key)){laneIdx.set(key,lanes.length);lanes.push(key)}nodes.set(n,{id:n,t:T.get(n),lane:key,leaves:0,mh:0,cr:CR.get(n),xin:0,xout:0})}const nd=nodes.get(n);nd.leaves++;nd.mh+=T.get(lf).mh||0}
  if(S.lane&&typeof S.lane==="number"){const order=[...NAMES[S.lane].entries()].sort((a,b)=>a[1].row-b[1].row).map(e=>e[0]);lanes.sort((a,b)=>(order.indexOf(a)+1||1e9)-(order.indexOf(b)+1||1e9));lanes.forEach((k,i)=>laneIdx.set(k,i))}
  // 밖 토막을 뭉칠 레벨: 가장 깊은 거르기 레벨, 줄 레벨, 고른 항목 레벨 중 큰 것 (없으면 Lv1)
  const stubLv=Math.max(1,deepestFilter(),typeof S.lane==="number"?S.lane:0,...[...S.picks].map(p=>T.get(p).lv));
@@ -184,8 +208,8 @@ function build(){const g=S.grain,leaves=LEAVES.filter(passLeaf),lset=new Set(lea
  for(const e of D.edges){const pi=lset.has(e[0]),si=lset.has(e[1]);if(!pi&&!si)continue;
   if(pi&&si){const a=nodeOf.get(e[0]),b=nodeOf.get(e[1]);if(a===b){internal++;continue}const k=a+">"+b;let x=edges.get(k);if(!x)x=edges.set(k,{a,b,n:0,ex:[],cross:!!S.lane&&nodes.get(a).lane!==nodes.get(b).lane}).get(k);x.n++;if(x.ex.length<8)x.ex.push(e);
    if(x.cross){const hk=nodes.get(a).lane+">"+nodes.get(b).lane;handoff.set(hk,(handoff.get(hk)||0)+1)}}
-  else if(si){inN++;if(!$("ext").checked)continue;const b=nodeOf.get(e[1]),xn=extNode(e[0],"in");xn.count++;const k=xn.id+">"+b;let x=edges.get(k);if(!x)x=edges.set(k,{a:xn.id,b,n:0,ex:[],cross:false,ext:true}).get(k);x.n++;if(x.ex.length<8)x.ex.push(e)}
-  else{outN++;if(!$("ext").checked)continue;const a=nodeOf.get(e[0]),xn=extNode(e[1],"out");xn.count++;const k=a+">"+xn.id;let x=edges.get(k);if(!x)x=edges.set(k,{a,b:xn.id,n:0,ex:[],cross:false,ext:true}).get(k);x.n++;if(x.ex.length<8)x.ex.push(e)}}
+  else if(si){inN++;nodes.get(nodeOf.get(e[1])).xin++;if(!$("ext").checked)continue;const b=nodeOf.get(e[1]),xn=extNode(e[0],"in");xn.count++;const k=xn.id+">"+b;let x=edges.get(k);if(!x)x=edges.set(k,{a:xn.id,b,n:0,ex:[],cross:false,ext:true}).get(k);x.n++;if(x.ex.length<8)x.ex.push(e)}
+  else{outN++;nodes.get(nodeOf.get(e[0])).xout++;if(!$("ext").checked)continue;const a=nodeOf.get(e[0]),xn=extNode(e[1],"out");xn.count++;const k=a+">"+xn.id;let x=edges.get(k);if(!x)x=edges.set(k,{a,b:xn.id,n:0,ex:[],cross:false,ext:true}).get(k);x.n++;if(x.ex.length<8)x.ex.push(e)}}
  // 토막 이름: 같은 이름이 여러 구성품에서 오면 '· 구성품' 을 붙여 구별
  const byName=new Map();for(const x of ext.values()){const s=byName.get(x.name)||new Set();s.add(x.top);byName.set(x.name,s)}
  for(const x of ext.values())x.label=byName.get(x.name).size>1&&stubLv>1?`${x.name} · ${x.top}`:x.name;
@@ -210,7 +234,7 @@ function chainSets(sel){const upS=new Set(),dnS=new Set();if(sel==null)return{up
  const bfs=(start,adj,out)=>{const st=[start];while(st.length){const v=st.pop();for(const w of (adj.get(v)||[]))if(!out.has(w)&&w!==start){out.add(w);st.push(w)}}};bfs(sel,adjU,upS);bfs(sel,adjD,dnS);return{upS,dnS}}
 function edgeShown(e,sel,upS,dnS){if(S.lines==="off")return false;if(S.lines==="all")return true;if(S.lines==="hand")return !!e.cross;
  if(sel==null)return false;return e.a===sel||e.b===sel||(upS.has(e.a)&&(upS.has(e.b)||e.b===sel))||(dnS.has(e.b)&&(dnS.has(e.a)||e.a===sel))}
-const LEGEND={gantt:'한 행 = 상자 하나 · 막대 = 실제 기간 · 행/막대 누름 = 앞(보라)·뒤(초록) 사슬과 그 선 · 두 번 누름 = 그 안으로 · 빈 곳 두 번 누름 = 바깥으로 · 머리 행 누름 = 접기 · Ctrl+휠 = 가로 확대',
+const LEGEND={gantt:'한 행 = 상자 하나 · 막대 = 실제 기간 (묶음은 하위 범위) · ▼ = 마일스톤 · 작은 ▽ = 그 아래 마일스톤 · <span style="color:var(--hot)">빨간 가는 선</span> = 엑셀 요약 날짜가 하위 범위와 다름 · 밖 = 범위 밖 선행 들어옴/나감 · 행/막대 누름 = 앞(보라)·뒤(초록) 사슬과 그 선 · 두 번 누름 = 그 안으로 · 빈 곳 두 번 누름 = 바깥으로 · 머리 행 누름 = 접기 · Ctrl+휠 = 가로 확대',
  time:'상자 = 이름표(왼쪽 끝 = 시작일) · 회색 띠 = 실제 기간 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록) · 두 번 누름 = 그 안으로 · 빈 곳 두 번 누름 = 바깥으로',
  flow:'선행 순서로 층 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 빨간 점선 = 뭉친 뒤 거꾸로 가는 선 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록)'};
 function draw(){build();$("legend").innerHTML=LEGEND[S.layout];const gm=S.layout==="gantt";$("gantt").style.display=gm?"block":"none";svg.style.display=gm?"none":"block";
@@ -237,7 +261,8 @@ function draw(){build();$("legend").innerHTML=LEGEND[S.layout];const gm=S.layout
  for(const n of nodes){const P=pos.get(n.id);if(!P)continue;const col=laneColor(n.lane),me=n.id===sel;let cls="nd";if(sel!=null&&!me&&!upS.has(n.id)&&!dnS.has(n.id))cls+=" dim";if(me)cls+=" sel";
   const crit=chk&&n.cr;s+=`<g class="${cls}" data-n="${n.id}"><rect class="bx" x="${P.x}" y="${P.y}" width="${P.w}" height="${P.h}" rx="5" fill="${me?"var(--sel)":crit?"rgba(220,38,38,.12)":"var(--card)"}" stroke="${crit?"var(--hot)":col}"/>`;
   if(S.lane)s+=`<rect x="${P.x}" y="${P.y}" width="5" height="${P.h}" rx="2.5" fill="${col}"/>`;
-  if(P.band)s+=`<rect x="${P.x+1}" y="${P.y+P.h-8}" width="${Math.max(2,P.band-2)}" height="7" rx="2" fill="var(--band)"/>`;
+  if(P.band&&n.t.ms)s+=`<path d="M${P.x-5},${P.y+P.h-10}H${P.x+5}L${P.x},${P.y+P.h-1}Z" fill="currentColor"/>`;
+  else if(P.band)s+=`<rect x="${P.x+1}" y="${P.y+P.h-8}" width="${Math.max(2,P.band-2)}" height="7" rx="2" fill="var(--band)"/>`;
   P.lines.forEach((ln,i)=>{s+=`<text x="${P.tx}" y="${P.y+14+i*15}" font-size="12" fill="currentColor">${esc(ln)}</text>`});
   if(P.sub)s+=`<text x="${P.tx}" y="${P.y+14+P.lines.length*15}" font-size="10.5" fill="var(--mut)">${esc(P.sub)}</text>`;
   s+=`<title>${esc(n.t.wbs+" "+n.t.name+"\n"+pathText(n.id)+"\n"+(n.t.st||"-")+" ~ "+(n.t.fi||"-")+" · 하위 업무 "+n.leaves+" · MH "+Math.round(n.mh).toLocaleString())}</title></g>`}
@@ -297,15 +322,16 @@ function renderGantt(){const g=$("gantt"),keep=keepView,st0=g.scrollTop,sl0=g.sc
  const groups=S.lane?G.lanes.map(k=>({key:k,items:nodes.filter(n=>n.lane===k).sort(ord)})).filter(x=>x.items.length):[{key:"",items:nodes.slice().sort(ord)}];
  const rows=[];for(const gr of groups){if(S.lane)rows.push({hdr:gr});if(!S.lane||!COLLAPSED.has(gr.key))for(const n of gr.items)rows.push({n})}
  const dated=nodes.filter(n=>n.t.st&&n.t.fi),d0=dated.length?Math.min(...dated.map(n=>dateNum(n.t.st))):0,d1=dated.length?Math.max(...dated.map(n=>dateNum(n.t.fi))):30,span=Math.max(30,d1-d0+1);
- const NW=Math.round(Math.min(380,Math.max(160,...nodes.map(n=>tw(n.t.name)+18)))),cols=[86,NW,84,84,54],TW=cols.reduce((a,b)=>a+b,0);
+ const NW=Math.round(Math.min(380,Math.max(160,...nodes.map(n=>tw(n.t.name)+18)))),cols=[86,NW,84,84,54,70],TW=cols.reduce((a,b)=>a+b,0);
  if(S.ppd==null)S.ppd=Math.max(0.05,(g.clientWidth-TW-40)/span);const ppd=S.ppd,BW=Math.ceil(span*ppd)+40,X=d=>10+(d-d0)*ppd;
  const sel=S.sel,{upS,dnS}=chainSets(sel),rowOf=new Map();rows.forEach((r,i)=>{if(r.n)rowOf.set(r.n.id,i)});
  const tmpl=`grid-template-columns:${cols.map(c=>c+"px").join(" ")}`;
  // 왼쪽 표
- let L=`<div class="gr0" style="${tmpl}"><span>WBS</span><span>작업 이름</span><span>시작</span><span>완료</span><span>기간</span></div>`,R="";
+ let L=`<div class="gr0" style="${tmpl}"><span>WBS</span><span>작업 이름</span><span>시작</span><span>완료</span><span>기간</span><span title="거른 범위 밖에서 들어오는 선행 ← · 밖으로 나가는 선행 →">밖 ←/→</span></div>`,R="";
  const left=[];for(const r of rows){if(r.hdr){const k=r.hdr.key;left.push(`<div class="gr0 ghd" data-h="${esc(k)}" style="grid-template-columns:${TW}px"><span><span style="color:${laneColor(k)}">${COLLAPSED.has(k)?"▸":"▾"}</span> ${esc(laneLabel(k))} <span class="mut">(${r.hdr.items.length})</span></span></div>`);continue}
   const n=r.n,t=n.t,cls=n.id===sel?" on":upS.has(n.id)?" up":dnS.has(n.id)?" dn":"";
-  left.push(`<div class="gr0${cls}" data-n="${n.id}" style="${tmpl}" title="${esc(pathText(n.id))}"><span class="num" style="text-align:left">${esc(t.wbs)}</span><span>${esc(t.name)}</span><span class="num">${t.st||""}</span><span class="num">${t.fi||""}</span><span class="num">${t.dur??""}</span></div>`)}
+  const sp=SPAN.get(n.id),c11=sp&&t.st&&t.fi&&(sp[0]!==t.st||sp[1]!==t.fi),c11t=c11?` style="color:var(--hot)" title="엑셀 날짜 — 하위 업무 범위 ${sp[0]} ~ ${sp[1]} 와 다름 (C11)"`:"";
+  left.push(`<div class="gr0${cls}" data-n="${n.id}" style="${tmpl}" title="${esc(pathText(n.id))}"><span class="num" style="text-align:left">${esc(t.wbs)}</span><span>${t.ms?"▼ ":""}${esc(t.name)}</span><span class="num"${c11t}>${t.st||""}</span><span class="num"${c11t}>${t.fi||""}</span><span class="num">${t.dur??""}</span><span class="num" title="거른 범위 밖에서 들어오는 선행 ${n.xin} · 밖으로 나가는 선행 ${n.xout} — 누르면 오른쪽 패널에 원본 행">${n.xin||n.xout?`←${n.xin} ${n.xout}→`:""}</span></div>`)}
  // 위 눈금
  const ticks=[];const yr0=new Date(d0*864e5).getUTCFullYear(),yr1=new Date(d1*864e5).getUTCFullYear();const monthStep=ppd*30>60?1:ppd*30>20?3:12;
  for(let y=yr0;y<=yr1+1;y++)for(let m=0;m<12;m+=monthStep){const d=Date.UTC(y,m,1)/864e5;if(d<d0-31||d>d1+31)continue;ticks.push({x:X(d),label:m===0?String(y):`${String(m+1).padStart(2,"0")}`,major:m===0})}
@@ -313,17 +339,27 @@ function renderGantt(){const g=$("gantt"),keep=keepView,st0=g.scrollTop,sl0=g.sc
  // 막대·선
  const H=rows.length*RH;let s=`<svg width="${BW}" height="${H}"><defs><marker id="gar" viewBox="0 0 8 8" refX="8" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0L8,4L0,8z" fill="context-stroke"/></marker></defs>`;
  for(const t of ticks)if(t.major)s+=`<line x1="${t.x}" y1="0" x2="${t.x}" y2="${H}" stroke="var(--line)"/>`;
- const chk=$("chk").checked;
+ const chk=$("chk").checked,msk=$("msk").checked;
  rows.forEach((r,i)=>{const y=i*RH;if(r.hdr){const it=r.hdr.items.filter(n=>n.t.st&&n.t.fi);if(!it.length)return;const a=Math.min(...it.map(n=>dateNum(n.t.st))),b=Math.max(...it.map(n=>dateNum(n.t.fi)));
    s+=`<rect x="0" y="${y}" width="${BW}" height="${RH}" fill="rgba(127,127,127,.07)"/><rect x="${X(a)}" y="${y+9}" width="${Math.max(2,(b-a+1)*ppd)}" height="6" fill="var(--mut)"/>`;return}
-  const n=r.n,t=n.t;if(n.id===sel)s+=`<rect x="0" y="${y}" width="${BW}" height="${RH}" fill="var(--sel)" opacity=".5"/>`;if(!(t.st&&t.fi))return;
-  const x=X(dateNum(t.st)),w=Math.max(3,(dateNum(t.fi)-dateNum(t.st)+1)*ppd);
+  const n=r.n,t=n.t;if(n.id===sel)s+=`<rect x="0" y="${y}" width="${BW}" height="${RH}" fill="var(--sel)" opacity=".5"/>`;
+  const [bs,bf]=barDates(n);if(!(bs&&bf))return;
+  if(msk&&t.kids.length)for(const m of (MSU.get(n.id)||[])){if(!passLeaf(m))continue;const mt=T.get(m);if(!mt.st)continue;const cx=X(dateNum(mt.st))+Math.max(ppd,1)/2;
+   s+=`<path d="M${cx-4},${y}H${cx+4}L${cx},${y+6}Z" fill="currentColor" opacity=".75"><title>${esc("▽ "+mt.name+" · "+mt.st+"\n"+pathText(m))}</title></path>`}
   let fill="var(--band)";if(sel!=null){fill=n.id===sel?"var(--acc)":upS.has(n.id)?"var(--up)":dnS.has(n.id)?"var(--dn)":"var(--line)"}if(chk&&n.cr&&sel==null)fill="var(--hot)";
-  s+=`<rect class="gb" data-n="${n.id}" x="${x}" y="${y+5}" width="${w}" height="${RH-10}" rx="2" fill="${fill}" style="cursor:pointer"><title>${esc(t.name+"\n"+t.st+" ~ "+t.fi+" · "+(t.dur??"-")+"일"+(n.leaves>1?" · 하위 "+n.leaves:""))}</title></rect>`});
+  if(t.ms){const cx=X(dateNum(bs))+Math.max(ppd,1)/2;s+=`<path class="gb" data-n="${n.id}" d="M${cx-6},${y+5}H${cx+6}L${cx},${y+18}Z" fill="${fill==="var(--band)"?"currentColor":fill}" style="cursor:pointer"><title>${esc("▼ 마일스톤 "+t.name+"\n"+bs)}</title></path>`;return}
+  const x=X(dateNum(bs)),w=Math.max(3,(dateNum(bf)-dateNum(bs)+1)*ppd),diff=t.kids.length&&t.st&&t.fi&&(bs!==t.st||bf!==t.fi);
+  s+=`<rect class="gb" data-n="${n.id}" x="${x}" y="${y+5}" width="${w}" height="${RH-10}" rx="2" fill="${fill}" style="cursor:pointer"><title>${esc(t.name+"\n"+bs+" ~ "+bf+(t.kids.length?" (하위 범위)":"")+" · "+(t.dur??"-")+"일"+(n.leaves>1?" · 하위 "+n.leaves:""))}</title></rect>`;
+  if(diff)s+=`<rect x="${X(dateNum(t.st))}" y="${y+RH-4}" width="${Math.max(2,(dateNum(t.fi)-dateNum(t.st)+1)*ppd)}" height="2.5" fill="var(--hot)"><title>${esc("엑셀 날짜 "+t.st+" ~ "+t.fi+" — 하위 범위 "+bs+" ~ "+bf+" 와 다름 (C11)")}</title></rect>`});
  for(const e of G.edges.values()){if(e.ext)continue;const ia=rowOf.get(e.a),ib=rowOf.get(e.b);if(ia==null||ib==null)continue;if(!edgeShown(e,sel,upS,dnS))continue;
-  const A=G.nodes.get(e.a).t,B=G.nodes.get(e.b).t;if(!(A.fi&&B.st))continue;const x1=X(dateNum(A.fi)+1),y1=ia*RH+RH/2,x2=X(dateNum(B.st)),y2=ib*RH+RH/2;
+  const [as,af]=barDates(G.nodes.get(e.a)),[bs,bf]=barDates(G.nodes.get(e.b)),ty=edgeType(e),fromS=ty==="SS"||ty==="SF",toF=ty==="FF"||ty==="SF";
+  const pa=fromS?as:af,pb=toF?bf:bs;if(!(pa&&pb))continue;const x1=X(dateNum(pa)+(fromS?0:1)),y1=ia*RH+RH/2,x2=X(dateNum(pb)+(toF?1:0)),y2=ib*RH+RH/2;
   let col=e.cross?"var(--hand)":"#8a8f98";if(sel!=null){if(upS.has(e.a)||e.b===sel&&!dnS.has(e.a))col="var(--up)";if(dnS.has(e.b)||e.a===sel)col="var(--dn)"}
-  const ym=y2+(y2>y1?-RH/2+3:RH/2-3);const d=x2>=x1+8?`M${x1},${y1} H${x1+5} V${y2} H${x2}`:`M${x1},${y1} H${x1+5} V${ym} H${x2-6} V${y2} H${x2}`;
+  const ym=y2+(y2>y1?-RH/2+3:RH/2-3);let d;   // FS 완료→시작 · SS 시작→시작 · FF 완료→완료 · SF 시작→완료
+  if(!fromS&&!toF)d=x2>=x1+8?`M${x1},${y1} H${x1+5} V${y2} H${x2}`:`M${x1},${y1} H${x1+5} V${ym} H${x2-6} V${y2} H${x2}`;
+  else if(fromS&&!toF)d=`M${x1},${y1} H${Math.min(x1,x2)-8} V${y2} H${x2}`;
+  else if(!fromS&&toF)d=`M${x1},${y1} H${Math.max(x1,x2)+8} V${y2} H${x2}`;
+  else d=`M${x1},${y1} H${x1-8} V${ym} H${x2+8} V${y2} H${x2}`;
   s+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="1.3" marker-end="url(#gar)"/>`}
  s+="</svg>";
  g.innerHTML=`<div class="gg" style="grid-template-columns:${TW}px ${BW}px"><div class="gh gl">${L}</div><div class="gh">${ax}</div><div class="gl">${left.join("")}</div><div>${s}</div></div>`;
@@ -336,17 +372,17 @@ $("gantt").addEventListener("click",ev=>{if(ev.target.closest("[data-n],[data-h]
 function ganttZoom(f){S.ppd=(S.ppd||1)*f;keepView=true;draw()}
 // ---- 확대·이동·눈금 고정 ----
 function setVB(){svg.setAttribute("viewBox",`${VB.x} ${VB.y} ${VB.w} ${VB.h}`);updateAxis()}
-function updateAxis(){const ax=$("axis");if(!AXIS){ax.style.display="none";return}ax.style.display="block";const r=svg.getBoundingClientRect(),k=VB.w/r.width,h=24*k;
+function updateAxis(){const ax=$("axis");if(!AXIS){ax.style.display="none";return}const r=svg.getBoundingClientRect();if(r.width<10){ax.style.display="none";return}ax.style.display="block";const k=VB.w/r.width,h=24*k;
  ax.setAttribute("viewBox",`${VB.x} 0 ${VB.w} ${h}`);let s="";for(const t of AXIS.ticks){s+=`<line x1="${t.x}" y1="${h*0.55}" x2="${t.x}" y2="${h}" stroke="var(--mut)" stroke-width="${k}"/><text x="${t.x+3*k}" y="${h*0.62}" font-size="${11*k}" fill="var(--mut)">${t.label}</text>`}ax.innerHTML=s}
-function fit(){const r=svg.getBoundingClientRect(),sc=Math.max(drawn.w/r.width,drawn.h/r.height,0.5);VB={x:0,y:0,w:r.width*sc,h:r.height*sc};if(sc<1)VB={x:0,y:0,w:r.width,h:r.height};setVB()}
-function zoom(f,cx,cy){const r=svg.getBoundingClientRect();cx=cx??r.width/2;cy=cy??r.height/2;const px=VB.x+cx/r.width*VB.w,py=VB.y+cy/r.height*VB.h;VB.w*=f;VB.h*=f;VB.x=px-cx/r.width*VB.w;VB.y=py-cy/r.height*VB.h;setVB()}
+function fit(){const r=svg.getBoundingClientRect();if(r.width<10||r.height<10)return;const sc=Math.max(drawn.w/r.width,drawn.h/r.height,0.5);VB={x:0,y:0,w:r.width*sc,h:r.height*sc};if(sc<1)VB={x:0,y:0,w:r.width,h:r.height};setVB()}
+function zoom(f,cx,cy){const r=svg.getBoundingClientRect();if(r.width<10||r.height<10)return;cx=cx??r.width/2;cy=cy??r.height/2;const px=VB.x+cx/r.width*VB.w,py=VB.y+cy/r.height*VB.h;VB.w*=f;VB.h*=f;VB.x=px-cx/r.width*VB.w;VB.y=py-cy/r.height*VB.h;setVB()}
 svg.addEventListener("wheel",ev=>{ev.preventDefault();const r=svg.getBoundingClientRect();zoom(ev.deltaY>0?1.15:1/1.15,ev.clientX-r.left,ev.clientY-r.top)},{passive:false});
 let drag=null,dragged=false;
 svg.onmousedown=ev=>{drag={x:ev.clientX,y:ev.clientY,vx:VB.x,vy:VB.y};dragged=false};
 window.onmousemove=ev=>{if(!drag)return;if(Math.abs(ev.clientX-drag.x)+Math.abs(ev.clientY-drag.y)>3)dragged=true;const r=svg.getBoundingClientRect();VB.x=drag.vx-(ev.clientX-drag.x)*VB.w/r.width;VB.y=drag.vy-(ev.clientY-drag.y)*VB.h/r.height;setVB()};
 window.onmouseup=()=>{drag=null;setTimeout(()=>dragged=false,0)};
 $("zi").onclick=()=>S.layout==="gantt"?ganttZoom(1.3):zoom(1/1.3);$("zo").onclick=()=>S.layout==="gantt"?ganttZoom(1/1.3):zoom(1.3);
-$("zf").onclick=()=>{if(S.layout==="gantt"){S.ppd=null;keepView=false;draw()}else fit()};window.onresize=()=>{if(S.layout!=="gantt")fit()};
+$("zf").onclick=()=>{if(S.layout==="gantt"){S.ppd=null;keepView=false;draw()}else fit()};window.onresize=()=>{if(S.layout!=="gantt")fit();if($("mh").classList.contains("on"))renderMH()};
 function select(n){S.sel=n;keepView=true;draw()}
 // ---- '지금 보기' 문장 · 보기 주소 ----
 function nowSentence(){const parts=[];for(let l=1;l<=5;l++){const f=S.f[l];if(!f)continue;const a=[...f];parts.push(a.length<=3?a.join("·"):`${LVNAME[l]} ${a.length}개`)}
@@ -354,8 +390,8 @@ function nowSentence(){const parts=[];for(let l=1;l<=5;l++){const f=S.f[l];if(!f
  s+=` 를 Lv${S.grain} ${LVNAME[S.grain]} 상자로`;s+=S.lane==="pick"?", 줄은 고른 항목별":S.lane?`, 줄은 ${LVNAME[S.lane]}별`:", 줄 없음";return s}
 function renderNow(){$("nowText").innerHTML=`<b style="font-weight:normal">지금 보기:</b> ${esc(nowSentence())} <span class="mut">— 상자 ${G.nodes.size} · 선 ${[...G.edges.values()].filter(e=>!e.ext).length}${G.handoff.size?" · 넘겨받기 "+[...G.handoff.values()].reduce((a,b)=>a+b,0):""} · 밖 ${G.inN}/${G.outN}${G.nodes.size>300?" · 상자가 많습니다 — 거르기를 더하면 읽기 쉽습니다":""}</span>`;
  $("stat").textContent=`뭉쳐진 안쪽 선 ${G.internal}`}
-function writeHash(){const st={f:{},p:[...S.picks],g:S.grain,l:S.lane,y:S.layout,ln:S.lines,o:S.order,c:$("chk").checked?1:0,e:$("ext").checked?1:0};for(let l=1;l<=5;l++)if(S.f[l])st.f[l]=[...S.f[l]];try{history.replaceState(history.state||{d:0},"","#"+encodeURIComponent(JSON.stringify(st)))}catch(e){}renderCrumb()}
-function readHash(){try{const h=decodeURIComponent(location.hash.slice(1));if(!h)return false;const st=JSON.parse(h);for(let l=1;l<=5;l++)S.f[l]=st.f&&st.f[l]?new Set(st.f[l]):null;S.picks=new Set((st.p||[]).filter(n=>T.has(n)));S.grain=st.g||3;S.lane=st.l==="pick"?"pick":(+st.l||0);S.layout=["gantt","time","flow"].includes(st.y)?st.y:"gantt";S.lines=["off","sel","hand","all"].includes(st.ln)?st.ln:"sel";S.order=st.o==="start"?"start":"wbs";$("chk").checked=!!st.c;$("ext").checked=st.e!==0;return true}catch(e){return false}}
+function writeHash(){const st={f:{},p:[...S.picks],g:S.grain,l:S.lane,y:S.layout,ln:S.lines,o:S.order,c:$("chk").checked?1:0,e:$("ext").checked?1:0,m:$("msk").checked?1:0};for(let l=1;l<=5;l++)if(S.f[l])st.f[l]=[...S.f[l]];try{history.replaceState(history.state||{d:0},"","#"+encodeURIComponent(JSON.stringify(st)))}catch(e){}renderCrumb()}
+function readHash(){try{const h=decodeURIComponent(location.hash.slice(1));if(!h)return false;const st=JSON.parse(h);for(let l=1;l<=5;l++)S.f[l]=st.f&&st.f[l]?new Set(st.f[l]):null;S.picks=new Set((st.p||[]).filter(n=>T.has(n)));S.grain=st.g||3;S.lane=st.l==="pick"?"pick":(+st.l||0);S.layout=["gantt","time","flow"].includes(st.y)?st.y:"gantt";S.lines=["off","sel","hand","all"].includes(st.ln)?st.ln:"sel";S.order=st.o==="start"?"start":"wbs";$("chk").checked=!!st.c;$("ext").checked=st.e!==0;$("msk").checked=st.m!==0;return true}catch(e){return false}}
 $("copyLink").onclick=()=>{writeHash();const url=location.href;const done=()=>{$("copyLink").textContent="복사됨 ✓";setTimeout(()=>$("copyLink").textContent="보기 주소 복사",1500)};
  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt("이 주소를 복사하세요",url));else prompt("이 주소를 복사하세요",url)};
 // ---- 패널 ----
@@ -381,6 +417,8 @@ function renderNode(no){const t=T.get(no),n=G.nodes.get(no);const under=x=>anc(x
  let h=`<h3>${t.no} · ${esc(t.name)} <span class="pill">Lv${t.lv}</span>${t.cr?'<span class="pill">가장 긴 사슬</span>':""}</h3><div class="mut">${esc(t.wbs)} · ${esc(path(no).slice(0,-1).map(x=>x.name).join(" › "))}</div>
  <table><tr><td>기간</td><td>${t.dur??"-"}일 · ${t.st||"-"} ~ ${t.fi||"-"}</td></tr><tr><td>여유</td><td>${t.fl} 근무일 (근사)</td></tr><tr><td>앞쪽·뒤쪽 전체</td><td>${t.up} · ${t.dn}</td></tr>
  ${n?`<tr><td>하위 업무</td><td>${n.leaves} · MH ${fmtMH(n.mh)}</td></tr>`:""}${t.staff!=null?`<tr><td>투입인력</td><td>${t.staff}</td></tr>`:""}${t.del?`<tr><td>산출물</td><td>${esc(t.del)}</td></tr>`:""}</table>`;
+ const spn=SPAN.get(no);if(spn)h=h.replace("</table>",`<tr><td>하위 범위</td><td>${spn[0]} ~ ${spn[1]}${t.st&&(spn[0]!==t.st||spn[1]!==t.fi)?' <span class="err">엑셀 날짜와 다름 (C11)</span>':""}</td></tr></table>`);
+ const msl=MSU.get(no)||[];if(msl.length)h+=`<h3>그 아래 마일스톤 (${msl.length})</h3><div style="font-size:12px">${msl.slice(0,30).map(m=>`▼ ${T.get(m).st||"-"} <span class="lnk" data-n="${m}">${esc(T.get(m).name)}</span>`).join("<br>")}${msl.length>30?`<br>… ${msl.length-30}개 더`:""}</div>`;
  if(t.kids.length)h+=`<div style="margin:6px 0"><span class="lnk" data-s="${no}">이 안으로 들어가기 (${t.kids.length}개)</span> · <span class="lnk" data-pk="${no}">트리 체크에 더하기</span></div>`;
  if(agg)h+=`<h3>이 상자의 연결 (뭉친 것)</h3><table>${agg}</table>`;
  h+=`<h3>선행 (원본 행 ${preE.length})</h3><div style="font-size:12px">${pre}</div><h3>후속 (원본 행 ${sucE.length})</h3><div style="font-size:12px">${suc}</div>`;if(iss)h+=`<h3>검사</h3>${iss}`;
@@ -397,6 +435,89 @@ function drawIs(){const c=$("fIs").value,rows=D.issues.filter(i=>!c||i[0]===c);$
  for(const i of rows.slice(0,3000))h+=`<tr><td class="${i[1]==="오류"?"err":""}">${i[1]}</td><td>${i[0]}</td><td>${esc(i[2])}</td><td>${i[3]!=null&&T.has(i[3])?`<span class="lnk" data-n="${i[3]}">${i[3]}</span>`:(i[3]??"")}</td><td>${esc(i[4])}</td><td>${esc(i[5])}</td></tr>`;
  $("isT").innerHTML=h;$("isT").querySelectorAll(".lnk").forEach(x=>x.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+x.dataset.n)})}
 drawIs();
+// ---- ③ 월별 공수 — Man Hours 를 시작~완료 평일에 고르게 (휴일·사내 달력 모름, 총합은 같음). 파이썬 workload.py 와 같은 규칙 ----
+// 쓰는 행: 아래에 MH 가 적힌 업무가 하나라도 있으면 아래 것만, 없으면 자기 것. 날짜 없는 업무는 그래프 밖 '날짜 없음'.
+const MS={scope:"view",bin:"m",period:null,pbin:"m",path:[],hi:null,fit:false,mark:null,stack:[]};let MHC=null;
+function mhPrep(){if(MHC)return MHC;const below=new Map();
+ const post=no=>{const t=T.get(no);let any=false;for(const k of t.kids){post(k);if(below.get(k)||T.get(k).mh)any=true}below.set(no,any)};ROOTS.forEach(post);
+ const list=[],und=[],cset=new Set(),byLv={};
+ for(const r of D.tasks){const t=T.get(r[0]);if(!t.mh||below.get(t.no))continue;cset.add(t.no);byLv[t.lv]=(byLv[t.lv]||0)+1;
+  if(!(t.st&&t.fi)||t.fi<t.st){und.push(t.no);continue}
+  const a=dateNum(t.st),b=dateNum(t.fi);let wd=0;for(let d=a;d<=b;d++){const w=(d+4)%7;if(w>0&&w<6)wd++}
+  const per=t.mh/(wd||b-a+1),m=new Map();
+  for(let d=a;d<=b;d++){const w=(d+4)%7;if(wd&&(w===0||w===6))continue;const dt=new Date(d*864e5),k=dt.getUTCFullYear()*100+dt.getUTCMonth()+1;m.set(k,(m.get(k)||0)+per)}
+  list.push({no:t.no,al:[...m]})}
+ let cov=0;for(const no of LEAVES){let x=no;while(x!=null&&T.has(x)){if(cset.has(x)){cov++;break}x=T.get(x).par}}
+ const mt=new Map();for(const c of list)for(const [k,v] of c.al)mt.set(k,(mt.get(k)||0)+v);let diff=0;const pm=(D.mh&&D.mh.months)||{};
+ for(const [k,v] of mt)diff=Math.max(diff,Math.abs(v-(pm[`${Math.floor(k/100)}-${String(k%100).padStart(2,"0")}`]||0)));
+ for(const s in pm)if(!mt.has(+s.slice(0,4)*100+ +s.slice(5)))diff=Math.max(diff,Math.abs(pm[s]));
+ MHC={list,und,cset,byLv,noMH:LEAVES.length-cov,diff};return MHC}
+function binKey(ym,b){const y=Math.floor(ym/100),m=ym%100;return b==="m"?ym:b==="q"?y*10+Math.ceil(m/3):y}
+function binLabel(k,b){return b==="m"?`${Math.floor(k/100)}-${String(k%100).padStart(2,"0")}`:b==="q"?`${Math.floor(k/10)} ${k%10}분기`:`${k}년`}
+function niceMax(v){if(!(v>0))return 1;const e=10**Math.floor(Math.log10(v));for(const f of [1,1.2,1.5,2,2.5,3,4,5,6,8,10])if(f*e>=v*(1-1e-9))return f*e;return 10*e}
+function niceStep(mx){const e=10**Math.floor(Math.log10(mx)-1e-9);for(const f of [0.1,0.2,0.25,0.5,1,2,2.5,5,10]){const s=f*e,n=mx/s;if(n<=6&&Math.abs(n-Math.round(n))<1e-6)return s}return mx/4}
+const fmtN=v=>Math.round(v).toLocaleString();
+function underX(no,X){return X==null||anc(no,T.get(X).lv)===X}
+function renderMH(){const P=mhPrep(),view=MS.scope==="view",cs=view?P.list.filter(c=>passLeaf(c.no)):P.list,X=MS.path.length?MS.path[MS.path.length-1]:null,el=$("mhChart");
+ $("mhScope").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===MS.scope));$("mhBin").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===MS.bin));
+ $("mhScopeText").textContent=view?"— "+nowSentence().replace(/ 를 Lv.*$/,""):"— 모든 업무";
+ const und=P.und.filter(n=>!view||passLeaf(n)),undMH=und.reduce((a,n)=>a+T.get(n).mh,0);
+ $("mhInfo").textContent=`MH 쓴 행 ${P.cset.size.toLocaleString()} (${Object.entries(P.byLv).map(([l,c])=>`Lv${l} ${c.toLocaleString()}`).join(" · ")}) · MH 없는 하위 업무 ${P.noMH.toLocaleString()} / ${LEAVES.length.toLocaleString()} (마일스톤 포함) · `+(P.diff<1?"파이썬 계산과 월 합계 일치 ✓":`파이썬 계산과 월 합계가 최대 ${fmtN(P.diff)} MH 다름 — 알려 주세요`);
+ let lo=Infinity,hi=-Infinity;for(const c of cs)for(const [k] of c.al){if(k<lo)lo=k;if(k>hi)hi=k}
+ if(!isFinite(lo)){el.innerHTML=`<text x="20" y="40" font-size="13" fill="var(--mut)">이 범위에는 날짜와 Man Hours 가 함께 적힌 업무가 없습니다.</text>`;$("mhComp").innerHTML="";$("mhStat").textContent=und.length?`날짜 없음 ${und.length}행 ${fmtN(undMH)} MH`:"";renderMhCrumb();return}
+ const months=[];for(let y=Math.floor(lo/100),m=lo%100;y*100+m<=hi;){months.push(y*100+m);if(++m>12){m=1;y++}}
+ const W=Math.max(240,el.clientWidth),H=Math.max(160,el.clientHeight),L=74,R=14,TP=26,B=30,pw=W-L-R,ph=H-TP-B;
+ const nbin=b=>new Set(months.map(k=>binKey(k,b))).size;let eff=MS.bin;if(eff==="m"&&pw/nbin("m")<3)eff="q";if(eff==="q"&&pw/nbin("q")<3)eff="y";
+ if(MS.period!=null&&MS.pbin!==eff)MS.period=null;if(MS.mark!=null&&!months.some(k=>binKey(k,eff)===MS.mark))MS.mark=null;
+ const keys=[...new Set(months.map(k=>binKey(k,eff)))],idx=new Map(keys.map((k,i)=>[k,i])),n=keys.length,bl=eff==="m"?"달":eff==="q"?"분기":"해";
+ const tot=new Float64Array(n),ov=new Float64Array(n),ovX=MS.hi!=null?MS.hi:X,hiName=ovX!=null?T.get(ovX).name:"";
+ for(const c of cs){const inOv=ovX!=null&&underX(c.no,ovX);for(const [k,v] of c.al){const i=idx.get(binKey(k,eff));tot[i]+=v;if(inOv)ov[i]+=v}}
+ // 세로축 = 보이는 범위의 최대치 위 깔끔한 값 (겹쳐 본 항목에 '맞춤' 이면 그 항목의 최대치)
+ const fit=MS.fit&&ovX!=null,mx=niceMax(Math.max(...(fit?ov:tot))),step=niceStep(mx),bw=pw/n,gap=bw>6?1.5:bw>3?0.5:0,Y=v=>TP+ph-v/mx*ph;
+ let s="";for(let i=0;i*step<=mx*(1+1e-9);i++){const v=i*step,y=Y(v);s+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="var(--line)"${v?' stroke-dasharray="2 3"':""}/><text x="${L-6}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--mut)">${fmtN(v)}</text>`}
+ s+=`<text x="6" y="13" font-size="11" fill="var(--mut)">Man Hours</text>`;
+ let last=-1e9;keys.forEach((k,i)=>{const first=eff==="m"?k%100===1:eff==="q"?k%10===1:true;if(!first&&i)return;const x=L+i*bw;if(x-last<40)return;last=x;
+  s+=`<line x1="${x}" x2="${x}" y1="${TP+ph}" y2="${TP+ph+5}" stroke="var(--mut)"/><text x="${x+2}" y="${TP+ph+18}" font-size="11" fill="var(--mut)">${eff==="m"?Math.floor(k/100):eff==="q"?Math.floor(k/10):k}</text>`});
+ let peak=0;for(let i=1;i<n;i++)if(tot[i]>tot[peak])peak=i;
+ keys.forEach((k,i)=>{const x=L+i*bw,on=MS.period===k,mk=MS.mark===k,w=Math.max(0.6,bw-gap);s+=`<g class="mb" data-i="${i}">`;
+  if(on||mk)s+=`<rect x="${x}" y="${TP}" width="${bw}" height="${ph}" fill="var(--sel)" opacity="${on?.85:.45}"/>`;
+  s+=`<rect x="${x}" y="${TP}" width="${bw}" height="${ph}" fill="transparent"/>`;
+  if(!fit&&tot[i]>0)s+=`<rect x="${x+gap/2}" y="${Y(tot[i])}" width="${w}" height="${TP+ph-Y(tot[i])}" fill="var(--band)"/>`;
+  if(ovX!=null&&ov[i]>0){const v=Math.min(ov[i],mx);s+=`<rect x="${x+gap/2}" y="${Y(v)}" width="${w}" height="${TP+ph-Y(v)}" fill="var(--acc)"/>`}
+  s+=`<title>${esc(binLabel(k,eff)+"\n전체 "+fmtN(tot[i])+" MH"+(ovX!=null?"\n"+hiName+" "+fmtN(ov[i])+" MH ("+(tot[i]?Math.round(ov[i]/tot[i]*100):0)+"%)":"")+"\n두 번 누르면 그 "+bl+"의 구성")}</title></g>`});
+ el.setAttribute("viewBox",`0 0 ${W} ${H}`);el.innerHTML=s;
+ el.querySelectorAll("g.mb").forEach(g=>{const k=keys[+g.dataset.i];g.onclick=ev=>{ev.stopPropagation();MS.mark=MS.mark===k?null:k;renderMH()};g.ondblclick=ev=>{ev.stopPropagation();mhGo({period:k,pbin:eff,mark:null})}});
+ el.ondblclick=()=>mhUp();
+ const sum=tot.reduce((a,b)=>a+b,0),mi=MS.mark!=null?idx.get(MS.mark):null;
+ $("mhStat").innerHTML=`총 <b>${fmtN(sum)}</b> MH · ${binLabel(keys[0],eff)} ~ ${binLabel(keys[n-1],eff)} (${n}${bl}) · 최고 ${binLabel(keys[peak],eff)} <b>${fmtN(tot[peak])}</b>`
+  +(eff!==MS.bin?` · <span class="mut">창이 좁아 ${eff==="q"?"분기":"연"}로 묶음</span>`:"")
+  +(mi!=null?` · <span style="background:var(--sel);padding:0 5px;border-radius:4px">${binLabel(MS.mark,eff)} ${fmtN(tot[mi])} MH${ovX!=null?` (${esc(hiName)} ${fmtN(ov[mi])})`:""}</span>`:"")
+  +(ovX!=null?` · <span style="color:var(--acc)">■</span> ${esc(hiName)} ${fmtN(ov.reduce((a,b)=>a+b,0))} MH`:"")
+  +(und.length?` · <span class="mut">날짜 없음 ${und.length}행 ${fmtN(undMH)} MH (그래프 밖)</span>`:"");
+ // 구성: 기간(전체 또는 고른 달) 안에서 X 바로 아래 레벨별 (X 없으면 구성품 Lv1)
+ const comp=new Map(),xl=X!=null?T.get(X).lv:0;let ct=0;
+ for(const c of cs){if(!underX(c.no,X))continue;let v=0;for(const [k,x] of c.al)if(MS.period==null||binKey(k,eff)===MS.period)v+=x;if(!v)continue;
+  const key=X==null?anc(c.no,1):(T.get(c.no).lv>xl?anc(c.no,xl+1):c.no);comp.set(key,(comp.get(key)||0)+v);ct+=v}
+ const rows=[...comp.entries()].sort((a,b)=>b[1]-a[1]),top=rows.length?rows[0][1]:1;
+ const where=X==null?"구성품(Lv1)별":`${esc(T.get(X).name)} 아래 ${LVNAME[xl+1]?"Lv"+(xl+1)+" "+LVNAME[xl+1]:"하위"}별`;
+ let h=`<div class="mhh"><b>${MS.period==null?"전체 기간":binLabel(MS.period,eff)}</b> · ${where} · ${fmtN(ct)} MH <span class="mut">— 누름 = 위 그래프에 겹쳐 보기 · 두 번 누름 = 그 안으로${MS.period==null?" · 위 막대를 두 번 누르면 그 "+bl+"만":""}</span></div>`;
+ for(const [k,v] of rows){const t=T.get(k),self=k===X,can=!self&&t.kids.length>0&&!P.cset.has(k);
+  h+=`<div class="mhr${MS.hi===k?" on":""}" data-k="${k}"${can?' data-in="1"':""} title="${esc(pathText(k))}${can?"\n두 번 누르면 그 안으로":""}"><span class="nm"><span class="pill">Lv${t.lv}</span>${self?"(이 항목에 직접 적힌 MH)":esc(t.name)}${can?' <span class="mut">›</span>':""}</span><span class="bar"><i style="width:${(v/top*100).toFixed(2)}%"></i></span><span class="v">${fmtN(v)}</span><span class="p">${ct?(v/ct*100).toFixed(1):0}%</span></div>`}
+ if(!rows.length)h+=`<div class="mut" style="padding:10px">이 ${MS.period==null?"범위":bl}에는 공수가 없습니다.</div>`;
+ $("mhComp").innerHTML=h;
+ $("mhComp").querySelectorAll(".mhr").forEach(r=>{const k=+r.dataset.k;r.onclick=()=>{MS.hi=MS.hi===k?null:k;MS.fit=false;renderMH()};r.ondblclick=()=>{if(r.dataset.in)mhGo({path:[...MS.path,k],hi:null})}});
+ $("mhFit").style.display=ovX!=null?"":"none";$("mhFit").textContent=MS.fit?"전체 축으로":`'${hiName}' 에 맞춤`;
+ renderMhCrumb()}
+function renderMhCrumb(){let h=`<span class="mut">기간</span> `+(MS.period==null?`<span class="cur">전체 기간</span>`:`<span class="lnk" data-p="0">전체 기간</span> <span class="cs">›</span> <span class="cur">${binLabel(MS.period,MS.pbin)}</span>`);
+ h+=` <span class="mut" style="margin-left:12px">위치</span> `+(MS.path.length?`<span class="lnk" data-u="0">전체</span>`:`<span class="cur">전체</span>`);
+ MS.path.forEach((no,i)=>{h+=` <span class="cs">›</span> `+(i===MS.path.length-1?`<span class="cur">${esc(T.get(no).name)}</span>`:`<span class="lnk" data-u="${i+1}">${esc(T.get(no).name)}</span>`)});
+ const el=$("mhPath");el.innerHTML=h;el.querySelectorAll("[data-p]").forEach(x=>x.onclick=()=>mhGo({period:null}));el.querySelectorAll("[data-u]").forEach(x=>x.onclick=()=>mhGo({path:MS.path.slice(0,+x.dataset.u),hi:null}));
+ $("mhBack").disabled=!MS.stack.length;$("mhUp").disabled=MS.period==null&&!MS.path.length}
+function mhGo(ch){MS.stack.push({period:MS.period,pbin:MS.pbin,path:[...MS.path],hi:MS.hi});Object.assign(MS,ch);MS.fit=false;renderMH()}
+function mhUp(){if(MS.path.length)mhGo({path:MS.path.slice(0,-1),hi:null});else if(MS.period!=null)mhGo({period:null})}
+$("mhBack").onclick=()=>{const p=MS.stack.pop();if(p){Object.assign(MS,p);MS.fit=false;renderMH()}};$("mhUp").onclick=mhUp;$("mhFit").onclick=()=>{MS.fit=!MS.fit;renderMH()};
+$("mhScope").querySelectorAll("button").forEach(b=>b.onclick=()=>{MS.scope=b.dataset.v;MS.mark=null;renderMH()});
+$("mhBin").querySelectorAll("button").forEach(b=>b.onclick=()=>{MS.bin=b.dataset.v;MS.period=null;MS.mark=null;renderMH()});
 // ---- 안으로·바깥으로·뒤로 ----
 function navDepth(){return(history.state&&history.state.d)||0}
 function nav(fn){try{history.pushState({d:navDepth()+1},"",location.href)}catch(e){}fn()}

@@ -126,6 +126,9 @@ def generate(path: Path, rows: int = 12827, seed: int = 7) -> dict:
             if j:
                 r = rng.random()
                 t.deps.append((kids[j - 1].no, "" if r < 0.85 else ("SS+5일" if r < 0.93 else "FF")))
+        if len(kids) >= 3 and rng.random() < 0.12:              # 마일스톤 (기간 0) — 묶음의 마지막 업무, MH 없음
+            ms = kids[-1]
+            ms.dur, ms.staff, ms.mh, ms.name = 0, None, None, ms.name + " 완료"
         mi, ti, pi, di = wp.path
         siblings = by_path[wp.path]
         idx = siblings.index(wp)
@@ -180,7 +183,10 @@ def generate(path: Path, rows: int = 12827, seed: int = 7) -> dict:
 
     rows_out = []
     for n in order:
-        st, fi = workday(n.es), workday(n.es + max(n.dur, 1) - 1)
+        if n.level == 6 and n.dur == 0:                         # 마일스톤: 선행이 끝난 날 (MS Project 표시와 같음)
+            st = fi = workday(max(n.es - 1, 0))
+        else:
+            st, fi = workday(n.es), workday(n.es + max(n.dur, 1) - 1)
         compact = n.no % 9 == 0
         dur = f"{n.dur} 일" if n.no % 11 else f"{n.dur}일"
         if n.level == 6 and n.no % 97 == 0:
@@ -191,6 +197,7 @@ def generate(path: Path, rows: int = 12827, seed: int = 7) -> dict:
                          "staff": n.staff if n.level >= 5 else None, "mh": n.mh, "deliv": n.deliv})
 
     injected = inject(rows_out, order, by_no, rng)
+    undated = injected.pop("undated", [])
     succ = {}
     for r in rows_out:
         for tok in filter(None, str(r["preds"]).split(",")):
@@ -217,7 +224,8 @@ def generate(path: Path, rows: int = 12827, seed: int = 7) -> dict:
         ws.column_dimensions[col].width = wdt
     path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(path)
-    return {"rows": len(rows_out), "injected": injected}
+    milestones = [n.no for n in order if n.level == 6 and n.dur == 0]
+    return {"rows": len(rows_out), "injected": injected, "undated": undated, "milestones": milestones}
 
 
 def inject(rows: list[dict], order: list[Node], by_no: dict, rng: random.Random) -> dict:
@@ -230,7 +238,8 @@ def inject(rows: list[dict], order: list[Node], by_no: dict, rng: random.Random)
     def add(no, tok):
         r = rows[no - 1]
         r["preds"] = (str(r["preds"]) + "," + tok).strip(",") if r["preds"] else tok
-    out = {k: [] for k in ("C01", "C02", "C03", "C04", "C05", "C07", "C08", "C10", "P07", "P09", "P11")}
+    out = {k: [] for k in ("C01", "C02", "C03", "C04", "C05", "C07", "C08", "C10", "C11", "C12", "P07", "P09", "P11")}
+    firsts = {w.children[0].no for w in wps}
     for _ in range(2):
         t = leaf()
         add(t.no, str(len(rows) + 1000 + t.no))
@@ -253,7 +262,7 @@ def inject(rows: list[dict], order: list[Node], by_no: dict, rng: random.Random)
     out["C10"].append(kid.no)
     for _ in range(2):                                                       # 날짜 충돌: FS 선행이 있는 업무의 시작을 앞당김
         t = leaf()
-        while not t.deps or t.deps[0][1] or t.no in out["C05"]:
+        while not t.deps or t.deps[0][1] or t.no in out["C05"] or t.no in firsts or t.dur == 0:   # 첫 업무를 당기면 묶음 날짜도 바뀐다 (C11)
             t = leaf()
         p = by_no[t.deps[0][0]]
         early = workday(max(p.es + p.dur - 3, 0))
@@ -280,4 +289,20 @@ def inject(rows: list[dict], order: list[Node], by_no: dict, rng: random.Random)
     t = leaf()
     add(t.no, "약 12")
     out["P11"].append(t.no)
+    used = {no for v in out.values() for no in v}
+    ph = [n for n in order if n.level == 3]                                  # 요약 날짜 손댐: 개발 단계 하나의 완료를 1주 뒤로
+    n3 = ph[len(ph) // 2]
+    fi = workday(n3.es + max(n3.dur, 1) - 1) + timedelta(days=7)
+    rows[n3.no - 1]["finish"] = date_text(fi)
+    out["C11"].append(n3.no)
+    n4 = next(n for n in order if n.level == 4 and n.no > n3.no + 200)      # 요약 MH 손댐
+    rows[n4.no - 1]["mh"] = (rows[n4.no - 1]["mh"] or 0) + 120
+    out["C12"].append(n4.no)
+    for wp in wps[len(wps) * 2 // 3:]:                                       # 날짜 없는 업무: 묶음 가운데 업무 (가장자리는 묶음 날짜를 바꾼다)
+        mid = wp.children[1:-1]
+        cand = [k for k in mid if k.no not in used and k.dur and not k.deps[1:]]
+        if cand:
+            rows[cand[0].no - 1]["start"] = rows[cand[0].no - 1]["finish"] = None
+            out["undated"] = [cand[0].no]
+            break
     return out

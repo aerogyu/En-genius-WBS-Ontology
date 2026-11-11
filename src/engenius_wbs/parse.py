@@ -42,6 +42,8 @@ ISSUES = {
     "C08": ("알림", "선행·후속이 하나도 없는 하위 업무"),
     "C09": ("경고", "시작이 완료보다 늦음"),
     "C10": ("알림", "상위 묶음과 그 하위 업무 사이의 선행 관계"),
+    "C11": ("알림", "요약 작업 날짜가 하위 업무 범위와 다름"),
+    "C12": ("알림", "요약 작업 Man Hours 가 하위 합과 다름"),
 }
 
 
@@ -97,6 +99,11 @@ class Task:
     @property
     def is_summary(self) -> bool:
         return bool(self.children)
+
+    @property
+    def is_milestone(self) -> bool:
+        """마일스톤 = 하위 업무이고 기간 0 (MS Project 의 '0 일')."""
+        return not self.children and self.duration_days == 0
 
 
 @dataclass

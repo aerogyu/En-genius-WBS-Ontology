@@ -1,4 +1,4 @@
-"""WBS 보기 HTML 한 장 (v3, 피벗 방식) — 외부 JS·CDN 없음 (폐쇄망에서 파일을 그대로 연다).
+"""WBS 보기 HTML 한 장 (v3, 피벗 방식 + v0.2 마일스톤·월별 공수 탭) — 외부 JS·CDN 없음 (폐쇄망에서 파일을 그대로 연다).
 
 Lv6 업무마다 (구성품, 최상위 업무, 개발 단계, 기술 분야, 상위 기술 업무) 다섯 꼬리표가 있다고 보고, 엑셀 피벗처럼 다룬다:
   거르기(레벨마다 이름 여러 개 체크 + 트리 체크로 손으로 고른 묶음) × 묶기(상자 = 어느 레벨) × 줄 나누기(없음 | Lv1~4 이름 | 고른 항목별) × 배치(시간표 | 흐름도).
@@ -30,8 +30,11 @@ def payload(w: Wbs, a: Analysis) -> dict:
                       t.man_hours, t.staff])
     edges = [[e.pred, e.succ, ("" if e.type == "FS" else e.type) + e.lag_text] for e in a.edges]
     issues = [[i.code, i.level, i.title, i.no, i.wbs, i.detail] for i in all_issues(w, a)]
+    wl = a.workload
+    mh = {"months": {m: round(v, 1) for m, v in wl.month_totals().items()}, "total": round(wl.total_mh, 1),
+          "undated_mh": round(wl.undated_mh, 1), "undated": len(wl.undated), "rows": len(wl.contributors)}
     return {"source": Path(w.source).name, "tasks": tasks, "edges": edges, "issues": issues,
-            "project_days": round(a.project_days, 1), "cycles": len(a.cycles)}
+            "project_days": round(a.project_days, 1), "cycles": len(a.cycles), "mh": mh}
 
 
 def write_html(w: Wbs, a: Analysis, path: Path, title: str = "WBS 선후 관계") -> Path:

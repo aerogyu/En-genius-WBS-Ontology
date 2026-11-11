@@ -42,7 +42,7 @@ def schema_graph(cfg: dict) -> Graph:
     for c, label in ((WBS.Dependency, "선행 관계"), (WBS.Deliverable, "산출물"), (WBS.Run, "적재 실행")):
         g.add((c, RDF.type, RDFS.Class))
         g.add((c, RDFS.label, Literal(label, lang="ko")))
-    for p, label in ((WBS.partOf, "상위 WBS"), (WBS.precededBy, "선행 작업"), (WBS.produces, "산출물을 만든다"),
+    for p, label in ((WBS.isMilestone, "마일스톤 (기간 0)"), (WBS.partOf, "상위 WBS"), (WBS.precededBy, "선행 작업"), (WBS.produces, "산출물을 만든다"),
                      (WBS.predecessor, "선행 업무"), (WBS.successor, "후속 업무")):
         g.add((p, RDF.type, RDF.Property))
         g.add((p, RDFS.label, Literal(label, lang="ko")))
@@ -63,6 +63,8 @@ def build_graphs(w: Wbs, a: Analysis, cfg: dict, run_id: str) -> tuple[Graph, Gr
         g.add((s, WBS.rowNumber, Literal(t.no)))
         g.add((s, WBS.wbsCode, Literal(t.wbs)))
         g.add((s, WBS.level, Literal(t.level)))
+        if t.is_milestone:
+            g.add((s, WBS.isMilestone, Literal(True)))
         g.add((s, PROV.wasGeneratedBy, run))
         if t.parent is not None:
             g.add((s, WBS.partOf, task_iri(t.parent)))

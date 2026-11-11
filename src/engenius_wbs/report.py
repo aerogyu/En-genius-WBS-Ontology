@@ -1,4 +1,4 @@
-"""보고서 xlsx — 요약 · 검사 · 업무(계산 열 포함) · 분야 행렬 · 분야 간 연결 · 가장 긴 사슬."""
+"""보고서 xlsx — 요약 · 검사 · 단계 요약 · 분야 요약 · 월별 공수 · 업무(계산 열 포함) · 분야 행렬 · 분야 간 연결 · 가장 긴 사슬."""
 from __future__ import annotations
 
 from collections import Counter
@@ -26,6 +26,75 @@ def _sheet(wb, title, header, widths):
     return ws
 
 
+def summary_sheet(wb, title: str, w: Wbs, a: Analysis, level: int):
+    """레벨 level 요소마다: 엑셀 날짜 · 하위 범위 · 차이 · 하위 업무 수 · MH · 마일스톤 · 밖과 오가는 선행 — '단계 기간이 왜 이러냐' 를 찾는 표."""
+    tasks = w.tasks
+    head = ["번호", "WBS", "구성품", "최상위 업무", "개발 단계"] + (["기술 분야"] if level >= 4 else []) + \
+        ["엑셀 시작", "엑셀 완료", "하위 시작", "하위 완료", "시작 차이(일)", "완료 차이(일)", "하위 업무", "Man Hours(쓴 것)",
+         "마일스톤", "밖에서 들어옴", "밖으로 나감"]
+    s = _sheet(wb, title, head, [7, 16, 12, 12, 14] + ([12] if level >= 4 else []) + [11, 11, 11, 11, 8, 8, 8, 12, 8, 9, 9])
+
+    def up(no: int, lv: int):
+        t = tasks[no]
+        while t.level > lv and t.parent is not None:
+            t = tasks[t.parent]
+        return t.no if t.level == lv else None
+
+    def name_at(no: int, lv: int) -> str:
+        x = up(no, lv)
+        return tasks[x].name if x is not None else ""
+
+    leaves, mh, ms = Counter(), Counter(), Counter()
+    cset = set(a.workload.contributors)
+    for t in tasks.values():
+        x = up(t.no, level)
+        if x is None:
+            continue
+        if not t.children:
+            leaves[x] += 1
+            ms[x] += t.is_milestone
+        if t.no in cset:
+            mh[x] += t.man_hours
+    cin, cout = Counter(), Counter()
+    for e in a.edges:
+        p, q = up(e.pred, level), up(e.succ, level)
+        if p != q:
+            if p is not None:
+                cout[p] += 1
+            if q is not None:
+                cin[q] += 1
+    for t in sorted(tasks.values(), key=lambda x: x.excel_row):
+        if t.level != level:
+            continue
+        sp = a.child_span.get(t.no)
+        d0 = (t.start - sp[0]).days if sp and t.start else None
+        d1 = (t.finish - sp[1]).days if sp and t.finish else None
+        s.append([t.no, t.wbs, name_at(t.no, 1), name_at(t.no, 2), name_at(t.no, 3)] + ([t.name] if level >= 4 else []) +
+                 [t.start, t.finish, sp[0] if sp else None, sp[1] if sp else None, d0 or None, d1 or None, leaves[t.no],
+                  round(mh[t.no], 1) if mh[t.no] else None, ms[t.no] or None, cin[t.no] or None, cout[t.no] or None])
+    s.auto_filter.ref = s.dimensions
+
+
+def month_sheet(wb, w: Wbs, a: Analysis):
+    """행 = 달, 열 = 구성품, 값 = Man Hours (평일 균등 배분). 맨 아래 합계·날짜 없음."""
+    wl, tasks = a.workload, w.tasks
+    keys = list(wl.modules) + sorted({m for _, m in wl.cells} - set(wl.modules))
+    s = _sheet(wb, "월별 공수", ["달"] + [tasks[m].name for m in keys] + ["합계"], [9] + [11] * len(keys) + [12])
+    tot = Counter()
+    for ym in wl.months:
+        vals = [wl.cells.get((ym, m), 0.0) for m in keys]
+        for m, v in zip(keys, vals):
+            tot[m] += v
+        s.append([ym] + [round(v, 1) or None for v in vals] + [round(sum(vals), 1)])
+    s.append(["합계"] + [round(tot[m], 1) for m in keys] + [round(wl.total_mh, 1)])
+    s.append(["날짜 없음"] + [None] * len(keys) + [round(wl.undated_mh, 1)])
+    for c in s[s.max_row - 1]:
+        c.font = BOLD
+    for row in s.iter_rows(min_row=2, min_col=2):
+        for c in row:
+            c.number_format = "#,##0"
+
+
 def all_issues(w: Wbs, a: Analysis):
     return sorted(w.issues + a.issues, key=lambda i: (LEVELS_MSG[i.level], i.code, i.no or 0))
 
@@ -36,6 +105,7 @@ def write_report(w: Wbs, a: Analysis, cfg: dict, path: Path) -> Path:
     ws = wb.active
     ws.title = "요약"
     issues = all_issues(w, a)
+    wl = a.workload
     lv = Counter(t.level for t in tasks.values())
     rows = [
         ("원본 파일", Path(w.source).name), ("시트", w.sheet),
@@ -46,6 +116,13 @@ def write_report(w: Wbs, a: Analysis, cfg: dict, path: Path) -> Path:
         ("가장 긴 사슬 (달력 없는 근사, 근무일)", round(a.project_days, 1)),
         ("가장 긴 사슬의 하위 업무 수", len(a.critical_chain)),
         ("CPM 에서 뺀 순환 간선", a.cpm_dropped_edges),
+        ("마일스톤 (기간 0 인 하위 업무)", sum(1 for t in tasks.values() if t.is_milestone)),
+        ("월별 공수: 배분 방식", "Man Hours 를 시작~완료 평일에 고르게 (휴일·사내 달력 모름 — 근사, 총합은 같음)"),
+        ("월별 공수: 쓴 행", f"{len(wl.contributors):,} (아래에 적힌 MH 가 있으면 아래 것만 — "
+                          + " · ".join(f"Lv{k} {v:,}" for k, v in wl.by_level.items()) + ")"),
+        ("월별 공수: 달에 나눈 MH", round(wl.total_mh, 1)),
+        ("월별 공수: 날짜 없어 못 나눈 MH", f"{wl.undated_mh:,.1f} ({len(wl.undated)}행)"),
+        ("월별 공수: MH 가 없는 하위 업무", f"{wl.leaves_without_mh:,} / {wl.leaves:,} (마일스톤 포함)"),
         ("읽은 칸", ", ".join(f"{k}={v}" for k, v in w.columns.items())),
         ("읽지 않은 칸 (인명·설정 밖)", ", ".join(w.skipped_columns)),
     ]
@@ -66,6 +143,10 @@ def write_report(w: Wbs, a: Analysis, cfg: dict, path: Path) -> Path:
     for i in issues:
         name = tasks[i.no].name if i.no in tasks else ""
         s.append([i.level, i.code, i.title, i.no, i.excel_row, i.wbs, name, i.detail])
+
+    summary_sheet(wb, "단계 요약", w, a, cfg.get("phase_level", 3))
+    summary_sheet(wb, "분야 요약", w, a, cfg.get("discipline_level", 4))
+    month_sheet(wb, w, a)
 
     critical = set(a.critical_chain)
     s = _sheet(wb, "업무", ["번호", "WBS", "레벨", "작업 이름", "구성품", "개발 단계", "기술 분야", "기간(일)", "시작", "완료",

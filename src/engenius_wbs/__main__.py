@@ -50,6 +50,11 @@ def cmd_build(a) -> int:
     cnt = Counter(i.code for i in issues)
     log = {"run": f"WRUN-{stamp}", "source_file": src.name, "sheet": w.sheet, "tasks": len(w.tasks), "edges": len(an.edges),
            "cycles": len(an.cycles), "project_workdays": round(an.project_days, 1), "issues": dict(sorted(cnt.items())),
+           "levels": dict(sorted(Counter(t.level for t in w.tasks.values()).items())),
+           "milestones": sum(1 for t in w.tasks.values() if t.is_milestone),
+           "man_hours": {"rows_used": len(an.workload.contributors), "by_level": an.workload.by_level,
+                         "months": len(an.workload.months), "undated_rows": len(an.workload.undated),
+                         "leaves_without_mh": an.workload.leaves_without_mh},
            "seconds": {"read": round(t1 - t0, 2), "analyze": round(t2 - t1, 2), "write": round(t3 - t2, 2)}}
     (out / "run_log.json").write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n")
     print(f"[build] {src.name} ({w.sheet}) → {out}")

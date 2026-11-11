@@ -128,11 +128,12 @@ def test_small_outputs(small, tmp_path):
     rep = write_report(w, a, CFG, tmp_path / "r.xlsx")
     html = write_html(w, a, tmp_path / "v.html")
     wb = load_workbook(rep, read_only=True)
-    assert wb.sheetnames == ["요약", "검사", "업무", "분야 행렬", "분야 간 연결", "가장 긴 사슬"]
+    assert wb.sheetnames == ["요약", "검사", "단계 요약", "분야 요약", "월별 공수", "업무", "분야 행렬", "분야 간 연결", "가장 긴 사슬"]
     text = html.read_text(encoding="utf-8")
     assert "가나다" not in text and "<script src" not in text and "http" not in text.split("<script>")[1].replace("http://www.w3.org/2000/svg", "")
     for piece in ('id="tree"', 'id="filters"', 'id="grain"', 'id="lane"', 'id="quick"', 'data-v="time"', 'data-v="flow"', 'id="side"',
-                  'id="copyLink"', 'data-v="gantt"', 'id="lines"', 'id="gantt"', '"source":"small.xlsx"'):
+                  'id="copyLink"', 'data-v="gantt"', 'id="lines"', 'id="gantt"', '"source":"small.xlsx"',
+                  'data-t="mh"', 'id="mhChart"', 'id="mhComp"', 'id="msk"', '"mh":{"months":'):
         assert piece in text, piece
 
 
@@ -163,6 +164,70 @@ def test_synthetic_finds_every_injected_issue(synthetic):
     for code, nos in info["injected"].items():
         assert sum(1 for c, _ in found if c == code) == len(nos), code
     assert len(a.cycles) == 1 and len(a.cycles[0]) == 3
+
+
+def test_synthetic_milestones_and_workload(synthetic, tmp_path):
+    d, info, w, a = synthetic
+    ms = sorted(t.no for t in w.tasks.values() if t.is_milestone)
+    assert ms == sorted(info["milestones"]) and len(ms) > 100
+    wl = a.workload
+    assert wl.undated == info["undated"] and len(wl.undated) == 1
+    used = sum(w.tasks[n].man_hours for n in wl.contributors)
+    assert abs(wl.total_mh + wl.undated_mh - used) < 1e-6                     # 달에 나눈 것 + 날짜 없음 = 쓴 MH 전부
+    assert abs(sum(wl.month_totals().values()) - wl.total_mh) < 1e-6
+    assert wl.by_level == {6: len(wl.contributors)}                           # 합성은 MH 가 Lv6 에 다 있다 → 요약 행은 안 씀
+    assert wl.leaves_without_mh == len(ms)                                    # MH 없는 하위 업무 = 마일스톤뿐
+    assert len(wl.months) == len(set(wl.months)) and wl.months == sorted(wl.months)
+    g, _ = build_graphs(w, a, CFG, "WRUN-TEST")
+    q = "PREFIX wbs: <http://en-genius.local/onto/wbs/> SELECT (COUNT(*) AS ?n) WHERE { ?t wbs:isMilestone true }"
+    assert int(next(iter(g.query(q)))[0]) == len(ms)
+    wb = load_workbook(write_report(w, a, CFG, tmp_path / "r.xlsx"), read_only=True)
+    rows = list(wb["월별 공수"].iter_rows(values_only=True))
+    assert rows[0][0] == "달" and rows[-2][0] == "합계" and rows[-1][0] == "날짜 없음"
+    assert abs(rows[-2][-1] - round(wl.total_mh, 1)) < 0.05 and len(rows) == len(wl.months) + 3
+    ph = list(wb["단계 요약"].iter_rows(values_only=True))
+    c11 = info["injected"]["C11"][0]
+    row = next(r for r in ph if r[0] == c11)
+    assert row[10] == 7                                                       # 완료 차이(일) = 심은 7일
+
+
+# 공수 규칙을 손으로 셈하는 작은 WBS: (WBS, 이름, 기간, 시작, 완료, Man Hours)
+#   A(Lv2) 에 100 이 적혔지만 아래 a1·a2 에 60·30 → 아래 것만 (C12) · B(Lv2) 에만 40 → B 를 씀 (아래 b1·b2 는 MH 없음)
+#   C(Lv2) 하위 없음·날짜 없음 → 날짜 없음 20 · M(Lv1) 날짜는 하위 범위보다 이름 (C11) · b2 = 마일스톤
+WL = [
+    ("1", "M", None, date(2027, 1, 1), date(2027, 3, 5), None),
+    ("1.1", "A", None, None, None, 100),
+    ("1.1.1", "a1", 10, date(2027, 1, 25), date(2027, 2, 5), 60),     # 평일 10일: 1월 5일 · 2월 5일
+    ("1.1.2", "a2", 1, date(2027, 2, 1), date(2027, 2, 1), 30),
+    ("1.2", "B", None, date(2027, 3, 1), date(2027, 3, 5), 40),
+    ("1.2.1", "b1", 5, date(2027, 3, 1), date(2027, 3, 5), None),
+    ("1.2.2", "b2", 0, date(2027, 3, 5), date(2027, 3, 5), None),
+    ("1.3", "C", 3, None, None, 20),
+    ("1.4", "D", 2, date(2027, 3, 6), date(2027, 3, 7), 8),              # 주말만 → 달력 날 수로 나눔
+]
+
+
+def test_workload_rules(tmp_path):
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["번호", "WBS", "작업 이름", "기간", "시작", "완료", "Man Hours"])
+    for i, (code, name, dur, st, fi, mh) in enumerate(WL, start=1):
+        lv = code.count(".") + 1
+        ws.append([i, code, "   " * (lv - 1) + name, None if dur is None else f"{dur} 일",
+                   date_text(st) if st else None, date_text(fi) if fi else None, mh])
+    wb.save(tmp_path / "wl.xlsx")
+    w = read_wbs(tmp_path / "wl.xlsx", CFG)
+    a = analyze(w)
+    wl = a.workload
+    assert wl.contributors == [3, 4, 5, 8, 9]
+    assert wl.cells == {("2027-01", 1): 30.0, ("2027-02", 1): 60.0, ("2027-03", 1): 48.0}
+    assert wl.months == ["2027-01", "2027-02", "2027-03"] and wl.undated == [8] and wl.undated_mh == 20
+    assert wl.mh_below == {1: 158.0, 2: 90.0} and wl.leaves == 6 and wl.leaves_without_mh == 0
+    assert wl.by_level == {2: 3, 3: 2}
+    assert [t.no for t in w.tasks.values() if t.is_milestone] == [7]
+    found = sorted((i.code, i.no) for i in a.issues)
+    assert ("C12", 2) in found and ("C11", 1) in found and not any(c == "C11" and n != 1 for c, n in found)
+    assert a.child_span[1] == (date(2027, 1, 25), date(2027, 3, 7)) and a.child_span[5] == (date(2027, 3, 1), date(2027, 3, 5))
 
 
 def test_synthetic_no_person_names_in_outputs(synthetic, tmp_path):

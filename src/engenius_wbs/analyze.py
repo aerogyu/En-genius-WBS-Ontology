@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from .parse import Issue, Task, Wbs
+from .workload import Workload, workload
 
 
 @dataclass
@@ -37,6 +38,8 @@ class Analysis:
     critical_chain: list[int] = field(default_factory=list)  # 기간 합이 가장 긴 하위 업무 사슬 (순서대로)
     cpm_dropped_edges: int = 0              # 순환 때문에 CPM 에서 뺀 사건 간선 수
     discipline_flows: Counter = field(default_factory=Counter)   # (선행 분야, 후속 분야) → 건수
+    child_span: dict[int, tuple[date, date]] = field(default_factory=dict)  # 요약 작업 → 하위 업무(날짜 있는 것) 최소 시작·최대 완료
+    workload: Workload | None = None        # 월별 공수 (workload.py)
 
 
 def weekdays_between(a: date, b: date) -> int:
@@ -111,6 +114,11 @@ def topo(nodes, adj) -> list:
     return order
 
 
+def w_module_level(tasks: dict[int, Task]) -> int:
+    """구성품 레벨 = 가장 얕은 레벨 (보통 1)."""
+    return min((t.level for t in tasks.values()), default=1)
+
+
 def analyze(w: Wbs) -> Analysis:
     tasks = w.tasks
     issues: list[Issue] = []
@@ -125,6 +133,8 @@ def analyze(w: Wbs) -> Analysis:
             yield p
             p = tasks[p].parent
 
+    span_of = {t.no: (t.start, t.finish) for t in tasks.values()
+               if not t.children and t.start and t.finish and t.start <= t.finish}
     nested = set()                          # 상위 묶음 ↔ 그 하위 업무 사이 선행 (날짜 비교가 뜻이 없다)
     for t in tasks.values():
         for d in t.deps:
@@ -183,6 +193,24 @@ def analyze(w: Wbs) -> Analysis:
                 if wd < t.duration_days or wd > t.duration_days * 1.5 + 5:
                     iss("C06", t, f"기간 {t.duration_text} · 평일 {wd}일")
 
+    # 요약 작업: 날짜 ↔ 하위 범위 (C11), Man Hours ↔ 하위 합 (C12)
+    for t in sorted(tasks.values(), key=lambda x: -x.level):
+        spans = [span_of[c] for c in t.children if c in span_of]
+        if spans:
+            span_of[t.no] = (min(s[0] for s in spans), max(s[1] for s in spans))
+    wl = workload(w, w_module_level(tasks))
+    for t in tasks.values():
+        if not t.children:
+            continue
+        sp = span_of.get(t.no)
+        if sp and t.start and t.finish and (t.start, t.finish) != sp:
+            ds, df = (t.start - sp[0]).days, (t.finish - sp[1]).days
+            diff = " · ".join(x for x in (f"시작 {ds:+d}일" if ds else "", f"완료 {df:+d}일" if df else "") if x)
+            iss("C11", t, f"엑셀 {t.start}~{t.finish} · 하위 {sp[0]}~{sp[1]} (엑셀이 {diff})")
+        below = wl.mh_below.get(t.no)
+        if t.man_hours and below is not None and abs(t.man_hours - below) > max(0.5, abs(t.man_hours) * 1e-6):
+            iss("C12", t, f"적힌 {t.man_hours:,.1f} · 하위 합 {below:,.1f}")
+
     # 후속 열 검산
     derived_succs = defaultdict(set)
     for t in tasks.values():
@@ -223,6 +251,8 @@ def analyze(w: Wbs) -> Analysis:
     down_count = {v: down[v].bit_count() for v in nodes}
 
     a = Analysis(edges, issues, cycles, up_count, down_count, dict(preds_of), dict(succs_of))
+    a.child_span = {no: sp for no, sp in span_of.items() if tasks[no].children}
+    a.workload = wl
     cpm(tasks, edges, a)
 
     for e in edges:
