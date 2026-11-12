@@ -135,12 +135,14 @@ def view_page(srv: WbsServer, role: auth.Role, rev: int) -> str:
     bar = ('<span class="mut" id="meta"></span><span style="flex:1"></span>'
            '<span class="mut" id="srvNew" style="display:none;color:var(--hot)">새 판이 있음 — <a href="./">새로 고침</a></span>'
            f'<span class="mut" id="srvWho" title="역할 · DB 판 번호">{html.escape(who)} ({role.kind_ko}) · 판 #{rev}</span>'
-           '<a class="mut" href="export.xlsx" title="지금 DB 를 원본 양식 엑셀로 (인명 칸은 비어 있음)">엑셀 내려받기</a>'
+           '<a class="mut" id="srvExport" href="export.xlsx" title="서버에 저장된 판을 원본 양식 엑셀로 (인명 칸은 비어 있음). 이 브라우저의 가정 편집은 들어가지 않는다 — 저장은 다음 단계(S3)">저장된 판 엑셀 내려받기</a>'
            '<form method="post" action="logout" style="display:inline;margin:0"><button style="font:inherit;font-size:12px">로그아웃</button></form></header>')
     poll = ("\n<script>(function(){const R=" + str(rev) + ";setInterval(()=>fetch('api/status',{cache:'no-store'})"
             ".then(r=>r.ok?r.json():null).then(s=>{if(s&&s.rev!==R)document.getElementById('srvNew').style.display=''})"
             ".catch(()=>{}),30000)})();</script>\n")
     style = "<style>#edDown{display:none}</style>\n"   # 변경 목록 → apply.bat 흐름은 서버에서는 쓰지 않는다 (저장은 S3)
+    poll += ("<script>document.addEventListener('click',e=>{if(e.target.id!=='srvExport')return;let n=0;try{n=ED.size}catch(_){}"
+             "if(n&&!confirm('가정 편집 '+n+'건은 아직 서버에 저장되지 않아 이 엑셀에 들어가지 않습니다 (저장 기능은 다음 단계).\\n저장된 판 그대로 내려받을까요?'))e.preventDefault()});</script>\n")
     return page.replace(old_h, bar).replace(old_d, f'<script src="data.js?r={rev}"></script>{poll}{style}<script>\nconst D=window.__WBS_DATA__;')
 
 

@@ -62,6 +62,7 @@ def test_view_same_data_as_build(app_db):
     page = c.get("/").text
     assert "const D=window.__WBS_DATA__;" in page and "__DATA__" not in page.replace("__WBS_DATA__", "")
     assert '<script src="data.js?r=1"></script>' in page and "조회 (조회자) · 판 #1" in page
+    assert "저장된 판 엑셀 내려받기" in page and "ED.size" in page
     js = c.get("/data.js")
     assert js.headers["content-type"].startswith("text/javascript") and js.headers["cache-control"] == "private, no-cache"
     d = json.loads(js.text[len("window.__WBS_DATA__="):-1])
