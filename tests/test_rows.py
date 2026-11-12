@@ -249,3 +249,24 @@ def test_rows_api(two):
     assert r.status_code == 200 and r.json()["rev"] == 2
     assert fan.post("/api/rows", json={"base_rev": 1, "op": {"op": "up", "uid": U(st, 7)}}).status_code == 409
     assert fan.post("/api/rows", json={"base_rev": 2, "op": {"op": "nope", "uid": 1}}).status_code == 400
+
+
+def test_fix_relax(two):
+    """들여올 때 어겨 있던 만큼(느슨함)을 바로잡으면 날짜가 선행을 따라 밀린다 — 칸 고치기(fix_relax)로 저장."""
+    st, R, _ = two
+    a, b = U(st, 6), U(st, 7)
+    st.db.execute("UPDATE dep SET relax_days = 2 WHERE succ_uid = ? AND pred_uid = ?", (b, a))
+    st.db.execute("UPDATE task SET start_floor = NULL WHERE uid = ?", (b,))
+    st.recompute(CFG)
+    st.db.commit()
+    s0 = dates(st)[b][0]
+    with pytest.raises(EditError):
+        apply_edits(st, CFG, R["fan"], rev(st), [{"uid": b, "fix_relax": 1}])
+    with pytest.raises(EditError) as e:
+        apply_edits(st, CFG, R["hpc"], rev(st), [{"uid": b, "fix_relax": True}])
+    assert e.value.kind == "denied"
+    res = apply_edits(st, CFG, R["fan"], rev(st), [{"uid": b, "fix_relax": True}])
+    assert res["moved"] >= 1 and dates(st)[b][0] > s0
+    assert st.db.execute("SELECT SUM(relax_days) FROM dep WHERE succ_uid = ?", (b,)).fetchone()[0] == 0
+    c = history(st, CFG, uid=b, limit=1)[0]["changes"][0]
+    assert (c["label"], c["old"], c["new"]) == ("느슨함(평일)", "2", "0")

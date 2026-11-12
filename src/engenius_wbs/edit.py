@@ -22,10 +22,10 @@ from .parse import DEP_RE, parse_deps
 from .rows import EditError, check_cycles, cycle_uids
 from .store import Store, _units
 
-FIELDS = ("duration", "start", "preds", "name", "man_hours")
+FIELDS = ("duration", "start", "preds", "name", "man_hours", "fix_relax")
 LEAF_ONLY = ("duration", "start", "man_hours")
 LABEL = {"duration": "기간(평일)", "start": "시작 하한", "preds": "선행", "name": "이름", "man_hours": "Man Hours",
-         "add": "추가", "delete": "삭제", "move": "위치(WBS)", "children": "하위 줄", "ungroup": "풀기"}
+         "fix_relax": "느슨함(평일)", "relax": "느슨함(평일)", "add": "추가", "delete": "삭제", "move": "위치(WBS)", "children": "하위 줄", "ungroup": "풀기"}
 MAX_EDITS = 2000
 
 
@@ -83,6 +83,8 @@ def apply_edits(st: Store, cfg: dict, role: Role, base_rev: int, edits: list[dic
                 ch["start"] = date.fromisoformat(str(ch["start"])).isoformat() if ch["start"] else None
             if "man_hours" in ch and ch["man_hours"] is not None:
                 ch["man_hours"] = _num(ch["man_hours"], "Man Hours")
+            if "fix_relax" in ch and ch["fix_relax"] is not True:
+                raise EditError("invalid", "fix_relax 는 true 만")
             if "name" in ch:
                 ch["name"] = nfkc(ch["name"]).strip()
                 if not ch["name"] or len(ch["name"]) > 300:
@@ -159,6 +161,11 @@ def apply_edits(st: Store, cfg: dict, role: Role, base_rev: int, edits: list[dic
                 if gone and not tasks[no].children and not cur["start_floor"] and "start" not in ch:
                     log(uid, "start", None, cur["start"])            # 지워도 저절로 당겨지지 않게
                     st.db.execute("UPDATE task SET start_floor = ? WHERE uid = ?", (cur["start"], uid))
+            if ch.get("fix_relax"):                                  # 들여올 때 어겨 있던 만큼(느슨함)을 0 으로 → 날짜가 선행을 따름
+                total = st.db.execute("SELECT COALESCE(SUM(relax_days), 0) FROM dep WHERE succ_uid = ? AND relax_days > 0", (uid,)).fetchone()[0]
+                if total:
+                    log(uid, "relax", total, 0)
+                    st.db.execute("UPDATE dep SET relax_days = 0 WHERE succ_uid = ?", (uid,))
         n = st.db.execute("SELECT COUNT(*) FROM change WHERE txn_id = ?", (txn,)).fetchone()[0]
         if not n:
             raise EditError("invalid", "바뀐 칸이 없다")
