@@ -57,3 +57,8 @@ unit_days:
 
 # 산출물 칸을 나눌 구분자 (줄바꿈은 늘 나눈다)
 deliverable_split: [",", ";"]
+
+# 날짜 기준 주경로 (schedule.py) — 총 여유(평일)가 이 값 이하면 주경로, 그보다 크고 near 이하면 준주경로. 보기 화면에서도 바꿀 수 있다.
+schedule:
+  critical_float_days: 0
+  near_critical_days: 5

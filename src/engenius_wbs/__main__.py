@@ -40,7 +40,7 @@ def cmd_build(a) -> int:
             print(f"[NG] {i.code} {i.title} {i.detail}")
         return 2
     t1 = time.perf_counter()
-    an = analyze(w)
+    an = analyze(w, cfg)
     t2 = time.perf_counter()
     rep = write_report(w, an, cfg, out / "report.xlsx")
     view = write_html(w, an, out / "wbs_view.html", a.title or "WBS 선후 관계")
@@ -55,10 +55,16 @@ def cmd_build(a) -> int:
            "man_hours": {"rows_used": len(an.workload.contributors), "by_level": an.workload.by_level,
                          "months": len(an.workload.months), "undated_rows": len(an.workload.undated),
                          "leaves_without_mh": an.workload.leaves_without_mh},
+           "critical_path": {"critical": len(an.schedule.critical), "near": len(an.schedule.near),
+                             "negative_gaps": sum(1 for g in an.schedule.gaps if g is not None and g < -1e-6),
+                             "excluded": len(an.schedule.excluded), "workdays": round(an.schedule.end - an.schedule.start, 1),
+                             "next_float": an.schedule.next_float},
            "seconds": {"read": round(t1 - t0, 2), "analyze": round(t2 - t1, 2), "write": round(t3 - t2, 2)}}
     (out / "run_log.json").write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n")
     print(f"[build] {src.name} ({w.sheet}) → {out}")
-    print(f"  · 업무 {len(w.tasks):,} · 선행 관계 {len(an.edges):,} · 순환 {len(an.cycles)} · 가장 긴 사슬 {an.project_days:.0f} 근무일(근사)")
+    sc = an.schedule
+    print(f"  · 업무 {len(w.tasks):,} · 선행 관계 {len(an.edges):,} · 순환 {len(an.cycles)} · 사업 {sc.start_date} ~ {sc.end_date}"
+          f" · 주경로 {len(sc.critical)} · 준주경로 {len(sc.near)} (여유 ≤ {sc.near_days:g} 평일)")
     print("  · 문제: " + (" · ".join(f"{k} {v}" for k, v in sorted(cnt.items())) or "없음"))
     print(f"  · 보고서 {rep.name} · 보기 {view.name} · {ttl[0].name} · {ttl[1].name}  ({t3 - t0:.1f}초)")
     return 0

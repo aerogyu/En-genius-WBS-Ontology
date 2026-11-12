@@ -17,6 +17,7 @@ from engenius_wbs.config import load_config
 from engenius_wbs.parse import parse_date, parse_deps, parse_duration, read_wbs
 from engenius_wbs.rdfout import build_graphs
 from engenius_wbs.report import write_report
+from engenius_wbs.schedule import date_schedule, finish_date, start_date, wdate, widx
 from engenius_wbs.synth import date_text, generate, workday
 from engenius_wbs.viz import write_html
 
@@ -118,6 +119,30 @@ def test_small_cpm_and_counts(small):
     assert a.discipline_flows == {("성능", "성능"): 1, ("성능", "이차유로"): 2, ("이차유로", "이차유로"): 2}
 
 
+def test_widx_roundtrip():
+    assert widx(date(2000, 1, 3)) == 0 and widx(date(2000, 1, 8)) == 5 and widx(date(2000, 1, 10)) == 5   # 토요일 = 다음 월요일
+    d = date(2026, 12, 1)
+    for _ in range(400):
+        if d.weekday() < 5:
+            assert wdate(widx(d)) == d and start_date(widx(d)) == d and finish_date(widx(d) + 1) == d
+        d = date.fromordinal(d.toordinal() + 1)
+    assert widx(date(2027, 1, 11)) - widx(date(2027, 1, 1)) == 6                                        # 금 → 다음다음 월: 평일 6
+
+
+def test_small_date_schedule(small):
+    """A(0~4) → B(5~7) → FS+2 → C(10~13) → E(14~15) 가 주경로. D(SS A, 0~9) 는 E 와 FF — E 완료(16) − D 완료(10) = 여유 6."""
+    w, a = small
+    sc = a.schedule
+    assert sc.end - sc.start == 16 and sc.start_date == date(2027, 1, 1) and sc.end_date == w.tasks[12].finish
+    assert sc.critical == [6, 7, 10, 12] and sc.near == [] and sc.next_float == 6
+    assert sc.float_[11] == 6 and sc.float_[9] == 0 and sc.float_[4] == 0 and sc.float_[1] == 0
+    assert {(e.pred, e.succ): g for e, g in zip(a.edges, sc.gaps)} == {(6, 7): 0, (7, 10): 0, (6, 11): 0, (10, 12): 0, (11, 12): 6}
+    sc2 = date_schedule(w.tasks, a.edges, 0, 6)                                                          # 준주경로 기준을 넓히면 D 가 들어온다
+    assert sc2.near == [11] and sc2.critical == sc.critical
+    sc3 = date_schedule(w.tasks, a.edges, 6, 6)
+    assert sc3.critical == [6, 11, 7, 10, 12] and sc3.next_float is None
+
+
 def test_small_outputs(small, tmp_path):
     w, a = small
     g, d = build_graphs(w, a, CFG, "WRUN-TEST")
@@ -128,12 +153,15 @@ def test_small_outputs(small, tmp_path):
     rep = write_report(w, a, CFG, tmp_path / "r.xlsx")
     html = write_html(w, a, tmp_path / "v.html")
     wb = load_workbook(rep, read_only=True)
-    assert wb.sheetnames == ["요약", "검사", "단계 요약", "분야 요약", "월별 공수", "업무", "분야 행렬", "분야 간 연결", "가장 긴 사슬"]
+    assert wb.sheetnames == ["요약", "검사", "주경로", "단계 요약", "분야 요약", "월별 공수", "업무", "분야 행렬", "분야 간 연결"]
+    cp = list(wb["주경로"].iter_rows(values_only=True))
+    assert [r[2] for r in cp[1:]] == [6, 7, 10, 12] and cp[2][13] == "6" and cp[3][13] == "7+2일" and cp[4][13] == "10"   # 구동 선행
     text = html.read_text(encoding="utf-8")
     assert "가나다" not in text and "<script src" not in text and "http" not in text.split("<script>")[1].replace("http://www.w3.org/2000/svg", "")
     for piece in ('id="tree"', 'id="filters"', 'id="grain"', 'id="lane"', 'id="quick"', 'data-v="time"', 'data-v="flow"', 'id="side"',
                   'id="copyLink"', 'data-v="gantt"', 'id="lines"', 'id="gantt"', '"source":"small.xlsx"',
-                  'data-t="mh"', 'id="mhChart"', 'id="mhComp"', 'id="msk"', '"mh":{"months":'):
+                  'data-t="mh"', 'id="mhChart"', 'id="mhComp"', 'id="msk"', '"mh":{"months":',
+                  'data-t="cp"', 'id="cpList"', 'id="cpGrp"', 'data-q="cp"', '"cp":{"crit_days":0'):
         assert piece in text, piece
 
 
@@ -164,6 +192,21 @@ def test_synthetic_finds_every_injected_issue(synthetic):
     for code, nos in info["injected"].items():
         assert sum(1 for c, _ in found if c == code) == len(nos), code
     assert len(a.cycles) == 1 and len(a.cycles[0]) == 3
+
+
+def test_synthetic_critical_path(synthetic):
+    d, info, w, a = synthetic
+    sc = a.schedule
+    assert set(a.critical_chain) <= set(sc.critical)                     # 합성은 날짜 = 선행 계산 → 기간 합 최장 사슬은 주경로 안에
+    assert sc.near and sc.next_float is not None and 0 < sc.next_float <= 5   # 나란한 두 업무 → 준주경로가 생긴다
+    assert sc.excluded == info["undated"]
+    last = max(sc.critical, key=lambda n: sc.val[2 * n + 1])
+    assert sc.val[2 * last + 1] == sc.end and sc.float_[last] == 0
+    neg = {e.succ for e, g in zip(a.edges, sc.gaps) if g is not None and g < -1e-6}
+    c05 = {i.no for i in a.issues if i.code == "C05"}
+    c10 = {i.no for i in a.issues if i.code == "C10"}
+    assert neg <= c05 | c10                                              # 음수 간격 = 날짜가 선행을 어긴 것뿐
+    assert all(sc.float_[n] >= -1e-6 for n in sc.float_ if not w.tasks[n].children and n not in c05 | c10)
 
 
 def test_synthetic_milestones_and_workload(synthetic, tmp_path):

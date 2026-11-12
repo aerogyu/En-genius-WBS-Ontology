@@ -22,19 +22,24 @@ from .report import all_issues
 
 def payload(w: Wbs, a: Analysis) -> dict:
     crit = set(a.critical_chain)
+    sch = a.schedule
     tasks = []
     for t in sorted(w.tasks.values(), key=lambda x: x.excel_row):
         tasks.append([t.no, t.wbs, t.level, t.name, t.duration_days, t.start.isoformat() if t.start else "",
                       t.finish.isoformat() if t.finish else "", a.up_count.get(t.no, 0), a.down_count.get(t.no, 0),
                       round(a.total_float.get(t.no, 0), 1), 1 if t.no in crit else 0, t.parent, "; ".join(t.deliverables),
-                      t.man_hours, t.staff])
-    edges = [[e.pred, e.succ, ("" if e.type == "FS" else e.type) + e.lag_text] for e in a.edges]
+                      t.man_hours, t.staff, sch.float_.get(t.no)])
+    edges = [[e.pred, e.succ, ("" if e.type == "FS" else e.type) + e.lag_text, e.type, e.lag_days or 0, g]
+             for e, g in zip(a.edges, sch.gaps)]
     issues = [[i.code, i.level, i.title, i.no, i.wbs, i.detail] for i in all_issues(w, a)]
     wl = a.workload
     mh = {"months": {m: round(v, 1) for m, v in wl.month_totals().items()}, "total": round(wl.total_mh, 1),
           "undated_mh": round(wl.undated_mh, 1), "undated": len(wl.undated), "rows": len(wl.contributors)}
     return {"source": Path(w.source).name, "tasks": tasks, "edges": edges, "issues": issues,
-            "project_days": round(a.project_days, 1), "cycles": len(a.cycles), "mh": mh}
+            "project_days": round(a.project_days, 1), "cycles": len(a.cycles), "mh": mh,
+            "cp": {"crit_days": sch.crit_days, "near_days": sch.near_days, "critical": len(sch.critical), "near": len(sch.near),
+                   "start": sch.start_date.isoformat() if sch.start_date else "", "end": sch.end_date.isoformat() if sch.end_date else "",
+                   "next_float": sch.next_float, "excluded": len(sch.excluded)}}
 
 
 def write_html(w: Wbs, a: Analysis, path: Path, title: str = "WBS 선후 관계") -> Path:

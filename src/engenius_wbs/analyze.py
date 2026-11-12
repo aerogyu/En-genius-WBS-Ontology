@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from .parse import Issue, Task, Wbs
+from .schedule import Schedule, date_schedule
 from .workload import Workload, workload
 
 
@@ -40,6 +41,7 @@ class Analysis:
     discipline_flows: Counter = field(default_factory=Counter)   # (선행 분야, 후속 분야) → 건수
     child_span: dict[int, tuple[date, date]] = field(default_factory=dict)  # 요약 작업 → 하위 업무(날짜 있는 것) 최소 시작·최대 완료
     workload: Workload | None = None        # 월별 공수 (workload.py)
+    schedule: Schedule | None = None        # 날짜 기준 간격·여유·주경로 (schedule.py)
 
 
 def weekdays_between(a: date, b: date) -> int:
@@ -119,7 +121,8 @@ def w_module_level(tasks: dict[int, Task]) -> int:
     return min((t.level for t in tasks.values()), default=1)
 
 
-def analyze(w: Wbs) -> Analysis:
+def analyze(w: Wbs, cfg: dict | None = None) -> Analysis:
+    sc = (cfg or {}).get("schedule") or {}
     tasks = w.tasks
     issues: list[Issue] = []
     edges: list[Edge] = []
@@ -254,6 +257,7 @@ def analyze(w: Wbs) -> Analysis:
     a.child_span = {no: sp for no, sp in span_of.items() if tasks[no].children}
     a.workload = wl
     cpm(tasks, edges, a)
+    a.schedule = date_schedule(tasks, edges, float(sc.get("critical_float_days", 0)), float(sc.get("near_critical_days", 5)))
 
     for e in edges:
         pd, sd = tasks[e.pred].discipline, tasks[e.succ].discipline

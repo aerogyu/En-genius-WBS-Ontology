@@ -119,13 +119,21 @@ def generate(path: Path, rows: int = 12827, seed: int = 7) -> dict:
         by_path.setdefault(wp.path[:4], []).append(wp)
     for wp in wps:
         kids = wp.children
+        join = {}                                # 나란한 두 업무 (j-1, j) 를 j+1 이 같이 기다림 — 짧은 쪽에 여유가 생긴다 (준주경로)
         for j, t in enumerate(kids):
             t.dur = rng.randint(3, 40)
             t.staff = float(rng.randint(1, 4))
             t.mh = t.staff * t.dur * 8
-            if j:
+            if j >= 2 and j + 1 < len(kids) and j - 1 not in join and rng.random() < 0.2:
+                t.deps.append((kids[j - 2].no, ""))
+                t.dur = max(3, kids[j - 1].dur - rng.randint(0, 12))
+                t.mh = t.staff * t.dur * 8
+                join[j] = kids[j - 1].no
+            elif j:
                 r = rng.random()
                 t.deps.append((kids[j - 1].no, "" if r < 0.85 else ("SS+5일" if r < 0.93 else "FF")))
+            if j - 1 in join:
+                t.deps.append((join[j - 1], ""))
         if len(kids) >= 3 and rng.random() < 0.12:              # 마일스톤 (기간 0) — 묶음의 마지막 업무, MH 없음
             ms = kids[-1]
             ms.dur, ms.staff, ms.mh, ms.name = 0, None, None, ms.name + " 완료"
@@ -253,7 +261,8 @@ def inject(rows: list[dict], order: list[Node], by_no: dict, rng: random.Random)
     out["C03"].append(min(a.no, wp.children[1].no, c.no))
     out["C05"].append(a.no)                                                  # 순환 간선은 날짜도 어긋난다
     t = leaf()
-    other = next(w for w in wps if w.no < t.no and w.no != by_no[t.no].no and t.no not in [k.no for k in w.children])
+    other = next(w for w in wps if w.no < t.no and w.no != by_no[t.no].no and t.no not in [k.no for k in w.children]
+                 and w.es + w.dur <= t.es)                                   # 날짜는 맞게 (C05 를 따로 만들지 않음)
     add(t.no, str(other.no))
     out["C04"].append(t.no)
     wp2 = next(w for w in wps[len(wps) // 3:] if len(w.children) >= 3 and w is not wp)

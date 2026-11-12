@@ -42,7 +42,9 @@ def schema_graph(cfg: dict) -> Graph:
     for c, label in ((WBS.Dependency, "선행 관계"), (WBS.Deliverable, "산출물"), (WBS.Run, "적재 실행")):
         g.add((c, RDF.type, RDFS.Class))
         g.add((c, RDFS.label, Literal(label, lang="ko")))
-    for p, label in ((WBS.isMilestone, "마일스톤 (기간 0)"), (WBS.partOf, "상위 WBS"), (WBS.precededBy, "선행 작업"), (WBS.produces, "산출물을 만든다"),
+    for p, label in ((WBS.isMilestone, "마일스톤 (기간 0)"), (WBS.dateFloatDays, "총 여유 (평일, 엑셀 날짜 기준)"),
+                     (WBS.onCriticalPath, "주경로"), (WBS.nearCriticalPath, "준주경로"), (WBS.gapDays, "선행 간격 (평일, 엑셀 날짜 기준)"),
+                     (WBS.partOf, "상위 WBS"), (WBS.precededBy, "선행 작업"), (WBS.produces, "산출물을 만든다"),
                      (WBS.predecessor, "선행 업무"), (WBS.successor, "후속 업무")):
         g.add((p, RDF.type, RDF.Property))
         g.add((p, RDFS.label, Literal(label, lang="ko")))
@@ -104,6 +106,11 @@ def build_graphs(w: Wbs, a: Analysis, cfg: dict, run_id: str) -> tuple[Graph, Gr
     d.add((run, WBS.ruleVersion, Literal(RULE_VERSION)))
     d.add((run, WBS.projectWorkdays, Literal(a.project_days, datatype=XSD.decimal)))
     critical = set(a.critical_chain)
+    sch = a.schedule
+    on_cp, near = set(sch.critical), set(sch.near)
+    for e, gap in zip(a.edges, sch.gaps):
+        if gap is not None:
+            d.add((EGID[f"WDEP-{e.pred:06d}-{e.succ:06d}"], WBS.gapDays, Literal(gap, datatype=XSD.decimal)))
     for t in w.tasks.values():
         s = task_iri(t.no)
         d.add((s, WBS.upstreamCount, Literal(a.up_count.get(t.no, 0))))
@@ -112,6 +119,12 @@ def build_graphs(w: Wbs, a: Analysis, cfg: dict, run_id: str) -> tuple[Graph, Gr
         d.add((s, WBS.totalFloatDays, Literal(a.total_float.get(t.no, 0.0), datatype=XSD.decimal)))
         if t.no in critical:
             d.add((s, WBS.onLongestChain, Literal(True)))
+        if t.no in sch.float_:
+            d.add((s, WBS.dateFloatDays, Literal(sch.float_[t.no], datatype=XSD.decimal)))
+        if t.no in on_cp:
+            d.add((s, WBS.onCriticalPath, Literal(True)))
+        elif t.no in near:
+            d.add((s, WBS.nearCriticalPath, Literal(True)))
         if t.discipline:
             d.add((s, WBS.disciplineName, Literal(t.discipline, lang="ko")))
     for i, ((pd, sd), n) in enumerate(sorted(a.discipline_flows.items())):
