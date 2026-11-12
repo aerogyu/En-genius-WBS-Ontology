@@ -20,7 +20,7 @@ from .parse import Wbs
 from .report import all_issues
 
 
-def payload(w: Wbs, a: Analysis) -> dict:
+def payload(w: Wbs, a: Analysis, cfg: dict | None = None) -> dict:
     crit = set(a.critical_chain)
     sch = a.schedule
     tasks = []
@@ -35,15 +35,20 @@ def payload(w: Wbs, a: Analysis) -> dict:
     wl = a.workload
     mh = {"months": {m: round(v, 1) for m, v in wl.month_totals().items()}, "total": round(wl.total_mh, 1),
           "undated_mh": round(wl.undated_mh, 1), "undated": len(wl.undated), "rows": len(wl.contributors)}
-    return {"source": Path(w.source).name, "tasks": tasks, "edges": edges, "issues": issues,
+    from .apply import sha256_of
+    from .config import load_config, nfkc
+    units = {nfkc(k).lower(): float(v) for k, v in (cfg or load_config())["unit_days"].items()}
+    src = Path(w.source)
+    return {"source": src.name, "sheet": w.sheet, "sha256": sha256_of(src) if src.exists() else "", "units": units,
+            "has": sorted(w.columns), "tasks": tasks, "edges": edges, "issues": issues,
             "project_days": round(a.project_days, 1), "cycles": len(a.cycles), "mh": mh,
             "cp": {"crit_days": sch.crit_days, "near_days": sch.near_days, "critical": len(sch.critical), "near": len(sch.near),
                    "start": sch.start_date.isoformat() if sch.start_date else "", "end": sch.end_date.isoformat() if sch.end_date else "",
                    "next_float": sch.next_float, "excluded": len(sch.excluded)}}
 
 
-def write_html(w: Wbs, a: Analysis, path: Path, title: str = "WBS 선후 관계") -> Path:
-    data = json.dumps(payload(w, a), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+def write_html(w: Wbs, a: Analysis, path: Path, title: str = "WBS 선후 관계", cfg: dict | None = None) -> Path:
+    data = json.dumps(payload(w, a, cfg), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     page = TEMPLATE.replace("__TITLE__", html.escape(title)).replace("__DATA__", data)
     path.write_text(page, encoding="utf-8", newline="\n")
     return path

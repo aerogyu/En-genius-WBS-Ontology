@@ -71,6 +71,10 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
 .cpg .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cpg .bar i{display:block;height:12px;background:var(--hot);border-radius:2px;opacity:.8}.cpg .v{text-align:right;font-variant-numeric:tabular-nums;font-size:12px}
 .dot2{color:var(--hot)}.dot1{color:var(--near)}
 #cpNote{padding:5px 12px;border-top:1px solid var(--line)}
+.edbox{border:1px solid var(--acc);border-radius:8px;padding:6px 8px;margin-bottom:10px;background:var(--chip)}.edbox .it{display:flex;gap:6px;align-items:baseline;font-size:12px;padding:1px 0}.edbox .it .x{margin-left:auto;cursor:pointer;color:var(--mut)}
+.edbox button,#side button.eb{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:3px 9px;border-radius:6px;cursor:pointer;font:inherit;margin:4px 4px 0 0}.edbox button.pri,#side button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+#side table.ed input{width:100%}#side table.ed input[type=number]{width:80px}#side table.ed input[type=date]{width:140px}.mv,.gr0 .num.mv{color:var(--acc);font-weight:bold}
+#edChip{cursor:pointer;background:var(--acc);color:#fff}
 </style></head><body>
 <header><h1>__TITLE__</h1><span class="mut" id="meta"></span></header>
 <nav><button data-t="gr" class="on">① 선후 관계 보기</button><button data-t="is">② 검사</button><button data-t="mh">③ 월별 공수</button><button data-t="cp">④ 주경로</button></nav>
@@ -83,7 +87,7 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
    <button data-q="level" title="거르기 없이 한 레벨의 요소 전부를 줄 없이">한 레벨 전체 · 줄 없음</button>
    <button data-q="picks" title="왼쪽 트리에서 체크한 항목들만 모아, 줄은 고른 항목별">트리에서 고른 것</button>
    <button data-q="cp" title="주경로·준주경로 하위 업무만, 줄은 개발 단계별, 시작일 순">주경로만</button>
-   <span style="flex:1"></span><label title="간트의 묶음 행에 그 아래 마일스톤을 작은 ▽ 로"><input type="checkbox" id="msk" checked> 하부 마일스톤</label><label title="막대 빨강 = 주경로 · 노랑 = 준주경로 (엑셀 날짜 기준 총 여유)"><input type="checkbox" id="chk" checked> 주경로 색</label><label><input type="checkbox" id="ext" checked> 밖 출입</label>
+   <span class="chip" id="edChip" style="display:none" title="④ 주경로 탭에서 변경 목록 보기·내려받기"></span><span style="flex:1"></span><label title="간트의 묶음 행에 그 아래 마일스톤을 작은 ▽ 로"><input type="checkbox" id="msk" checked> 하부 마일스톤</label><label title="막대 빨강 = 주경로 · 노랑 = 준주경로 (엑셀 날짜 기준 총 여유)"><input type="checkbox" id="chk" checked> 주경로 색</label><label><input type="checkbox" id="ext" checked> 밖 출입</label>
   </div>
   <div id="ctl">
    <span class="k">거르기</span><div class="row" id="filters"></div>
@@ -133,7 +137,8 @@ const LEAF=new Map(),MH=new Map(),CR=new Map(),LEAVES=[];
 for(const t of T.values())t.ms=!t.kids.length&&t.dur===0;
 // 요약 작업의 하위 범위 (날짜 있는 하위 업무의 최소 시작·최대 완료 — 간트 막대) · 그 아래 마일스톤
 const SPAN=new Map(),MSU=new Map();
-(function sp(list){for(const no of list){const t=T.get(no);if(!t.kids.length)continue;sp(t.kids);let a=null,b=null;for(const k of t.kids){const kt=T.get(k),r=kt.kids.length?SPAN.get(k):(kt.st&&kt.fi&&kt.st<=kt.fi?[kt.st,kt.fi]:null);if(!r)continue;if(!a||r[0]<a)a=r[0];if(!b||r[1]>b)b=r[1]}if(a)SPAN.set(no,[a,b])}})(ROOTS);
+function sp(list){for(const no of list){const t=T.get(no);if(!t.kids.length)continue;sp(t.kids);let a=null,b=null;for(const k of t.kids){const kt=T.get(k),r=kt.kids.length?SPAN.get(k):(kt.st&&kt.fi&&kt.st<=kt.fi?[kt.st,kt.fi]:null);if(!r)continue;if(!a||r[0]<a)a=r[0];if(!b||r[1]>b)b=r[1]}if(a)SPAN.set(no,[a,b])}}sp(ROOTS);
+const SPAN0=new Map(SPAN);for(const t of T.values()){t.st0=t.st;t.fi0=t.fi;t.dur0=t.dur;t.name0=t.name;t.mh0=t.mh;t.staff0=t.staff}
 for(const no of LEAVES)if(T.get(no).ms){let p=T.get(no).par;while(p!=null&&T.has(p)){(MSU.get(p)||MSU.set(p,[]).get(p)).push(no);p=T.get(p).par}}
 for(const l of MSU.values())l.sort((a,b)=>(T.get(a).st||"").localeCompare(T.get(b).st||""));
 function barDates(n){const sp=n.t.kids.length?SPAN.get(n.id):null;return sp||[n.t.st,n.t.fi]}
@@ -388,7 +393,7 @@ function renderGantt(){const g=$("gantt"),keep=keepView,st0=g.scrollTop,sl0=g.sc
  const left=[];for(const r of rows){if(r.hdr){const k=r.hdr.key;left.push(`<div class="gr0 ghd" data-h="${esc(k)}" style="grid-template-columns:${TW}px"><span><span style="color:${laneColor(k)}">${COLLAPSED.has(k)?"▸":"▾"}</span> ${esc(laneLabel(k))} <span class="mut">(${r.hdr.items.length})</span></span></div>`);continue}
   const n=r.n,t=n.t,cls=n.id===sel?" on":upS.has(n.id)?" up":dnS.has(n.id)?" dn":"";
   const sp=SPAN.get(n.id),c11=sp&&t.st&&t.fi&&(sp[0]!==t.st||sp[1]!==t.fi),c11t=c11?` style="color:var(--hot)" title="엑셀 날짜 — 하위 업무 범위 ${sp[0]} ~ ${sp[1]} 와 다름 (C11)"`:"";
-  left.push(`<div class="gr0${cls}" data-n="${n.id}" style="${tmpl}" title="${esc(pathText(n.id))}"><span class="num" style="text-align:left">${esc(t.wbs)}</span><span>${t.ms?"▼ ":""}${esc(t.name)}</span><span class="num"${c11t}>${t.st||""}</span><span class="num"${c11t}>${t.fi||""}</span><span class="num">${t.dur??""}</span><span class="num" style="${cpc(n.id)===2?"color:var(--hot);font-weight:bold":cpc(n.id)?"color:var(--near);font-weight:bold":""}">${fmtD(SCH.fl.get(n.id))}</span><span class="num" title="거른 범위 밖에서 들어오는 선행 ${n.xin} · 밖으로 나가는 선행 ${n.xout} — 누르면 오른쪽 패널에 원본 행">${n.xin||n.xout?`←${n.xin} ${n.xout}→`:""}</span></div>`)}
+  left.push(`<div class="gr0${cls}" data-n="${n.id}" style="${tmpl}" title="${esc(pathText(n.id))}"><span class="num" style="text-align:left">${esc(t.wbs)}</span><span>${ED.has(n.id)?'<span class="mv" title="가정 편집함">✎</span> ':""}${t.ms?"▼ ":""}${esc(t.name)}</span><span class="num${t.st!==t.st0?" mv":""}"${c11t}${t.st!==t.st0?` title="원래 ${t.st0}"`:""}>${t.st||""}</span><span class="num${t.fi!==t.fi0?" mv":""}"${c11t}${t.fi!==t.fi0?` title="원래 ${t.fi0}"`:""}>${t.fi||""}</span><span class="num">${t.dur??""}</span><span class="num" style="${cpc(n.id)===2?"color:var(--hot);font-weight:bold":cpc(n.id)?"color:var(--near);font-weight:bold":""}">${fmtD(SCH.fl.get(n.id))}</span><span class="num" title="거른 범위 밖에서 들어오는 선행 ${n.xin} · 밖으로 나가는 선행 ${n.xout} — 누르면 오른쪽 패널에 원본 행">${n.xin||n.xout?`←${n.xin} ${n.xout}→`:""}</span></div>`)}
  // 위 눈금
  const ticks=[];const yr0=new Date(d0*864e5).getUTCFullYear(),yr1=new Date(d1*864e5).getUTCFullYear();const monthStep=ppd*30>60?1:ppd*30>20?3:12;
  for(let y=yr0;y<=yr1+1;y++)for(let m=0;m<12;m+=monthStep){const d=Date.UTC(y,m,1)/864e5;if(d<d0-31||d>d1+31)continue;ticks.push({x:X(d),label:m===0?String(y):`${String(m+1).padStart(2,"0")}`,major:m===0})}
@@ -401,6 +406,7 @@ function renderGantt(){const g=$("gantt"),keep=keepView,st0=g.scrollTop,sl0=g.sc
    s+=`<rect x="0" y="${y}" width="${BW}" height="${RH}" fill="rgba(127,127,127,.07)"/><rect x="${X(a)}" y="${y+9}" width="${Math.max(2,(b-a+1)*ppd)}" height="6" fill="var(--mut)"/>`;return}
   const n=r.n,t=n.t;if(n.id===sel)s+=`<rect x="0" y="${y}" width="${BW}" height="${RH}" fill="var(--sel)" opacity=".5"/>`;
   const [bs,bf]=barDates(n);if(!(bs&&bf))return;
+  {const o=t.kids.length?SPAN0.get(n.id):[t.st0,t.fi0];if(o&&o[0]&&(o[0]!==bs||o[1]!==bf))s+=`<rect x="${X(dateNum(o[0]))}" y="${y+RH-4}" width="${Math.max(2,(dateNum(o[1])-dateNum(o[0])+1)*ppd)}" height="2.5" fill="var(--acc)" opacity=".55"><title>${esc("가정 편집 전 날짜 "+o[0]+" ~ "+o[1])}</title></rect>`}
   if(msk&&t.kids.length)for(const m of (MSU.get(n.id)||[])){if(!passLeaf(m))continue;const mt=T.get(m);if(!mt.st)continue;const cx=X(dateNum(mt.st))+Math.max(ppd,1)/2;
    s+=`<path d="M${cx-4},${y}H${cx+4}L${cx},${y+6}Z" fill="currentColor" opacity=".75"><title>${esc("▽ "+mt.name+" · "+mt.st+"\n"+pathText(m))}</title></path>`}
   let fill="var(--band)";if(sel!=null){fill=n.id===sel?"var(--acc)":upS.has(n.id)?"var(--up)":dnS.has(n.id)?"var(--dn)":"var(--line)"}const cc=chk?cpc(n.id):0;if(cc&&sel==null)fill=cc===2?"var(--hot)":"var(--near)";
@@ -480,8 +486,9 @@ function renderNode(no){const t=T.get(no),n=G.nodes.get(no);const under=x=>anc(x
  const msl=MSU.get(no)||[];if(msl.length)h+=`<h3>그 아래 마일스톤 (${msl.length})</h3><div style="font-size:12px">${msl.slice(0,30).map(m=>`▼ ${T.get(m).st||"-"} <span class="lnk" data-n="${m}">${esc(T.get(m).name)}</span>`).join("<br>")}${msl.length>30?`<br>… ${msl.length-30}개 더`:""}</div>`;
  if(t.kids.length)h+=`<div style="margin:6px 0"><span class="lnk" data-s="${no}">이 안으로 들어가기 (${t.kids.length}개)</span> · <span class="lnk" data-pk="${no}">트리 체크에 더하기</span></div>`;
  if(agg)h+=`<h3>이 상자의 연결 (뭉친 것)</h3><table>${agg}</table>`;
+ h+=edForm(no);
  h+=`<h3>선행 (원본 행 ${preE.length})</h3><div style="font-size:12px">${pre}</div><h3>후속 (원본 행 ${sucE.length})</h3><div style="font-size:12px">${suc}</div>`;if(iss)h+=`<h3>검사</h3>${iss}`;
- $("side").innerHTML=h;bindSide()}
+ $("side").innerHTML=h;bindSide();bindEdForm(no)}
 function bindSide(){$("side").querySelectorAll(".lnk[data-n]").forEach(x=>x.onclick=()=>goTask(+x.dataset.n));$("side").querySelectorAll(".lnk[data-s]").forEach(x=>x.onclick=()=>pathFilter(+x.dataset.s));
  $("side").querySelectorAll(".lnk[data-pk]").forEach(x=>x.onclick=()=>{S.picks.add(+x.dataset.pk);if(S.lane!=="pick")S.lane="pick";syncControls();renderTree();draw()})}
 function goTask(no){const t=T.get(no);const node=anc(no,S.grain);if(passLeaf(t.kids.length?LEAVES.find(l=>anc(l,t.lv)===no):no)&&G.nodes.has(node))select(node);else pathFilter(no)}
@@ -521,7 +528,7 @@ function renderMH(){const P=mhPrep(),view=MS.scope==="view",cs=view?P.list.filte
  $("mhScope").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===MS.scope));$("mhBin").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===MS.bin));
  $("mhScopeText").textContent=view?"— "+nowSentence().replace(/ 를 Lv.*$/,""):"— 모든 업무";
  const und=P.und.filter(n=>!view||passLeaf(n)),undMH=und.reduce((a,n)=>a+T.get(n).mh,0);
- $("mhInfo").textContent=`MH 쓴 행 ${P.cset.size.toLocaleString()} (${Object.entries(P.byLv).map(([l,c])=>`Lv${l} ${c.toLocaleString()}`).join(" · ")}) · MH 없는 하위 업무 ${P.noMH.toLocaleString()} / ${LEAVES.length.toLocaleString()} (마일스톤 포함) · `+(P.diff<1?"파이썬 계산과 월 합계 일치 ✓":`파이썬 계산과 월 합계가 최대 ${fmtN(P.diff)} MH 다름 — 알려 주세요`);
+ $("mhInfo").textContent=`MH 쓴 행 ${P.cset.size.toLocaleString()} (${Object.entries(P.byLv).map(([l,c])=>`Lv${l} ${c.toLocaleString()}`).join(" · ")}) · MH 없는 하위 업무 ${P.noMH.toLocaleString()} / ${LEAVES.length.toLocaleString()} (마일스톤 포함) · `+(ED.size?"가정 편집 반영 중 — 파이썬 값과 대조 안 함":P.diff<1?"파이썬 계산과 월 합계 일치 ✓":`파이썬 계산과 월 합계가 최대 ${fmtN(P.diff)} MH 다름 — 알려 주세요`);
  let lo=Infinity,hi=-Infinity;for(const c of cs)for(const [k] of c.al){if(k<lo)lo=k;if(k>hi)hi=k}
  if(!isFinite(lo)){el.innerHTML=`<text x="20" y="40" font-size="13" fill="var(--mut)">이 범위에는 날짜와 Man Hours 가 함께 적힌 업무가 없습니다.</text>`;$("mhComp").innerHTML="";$("mhStat").textContent=und.length?`날짜 없음 ${und.length}행 ${fmtN(undMH)} MH`:"";renderMhCrumb();return}
  const months=[];for(let y=Math.floor(lo/100),m=lo%100;y*100+m<=hi;){months.push(y*100+m);if(++m>12){m=1;y++}}
@@ -577,6 +584,103 @@ function mhUp(){if(MS.path.length)mhGo({path:MS.path.slice(0,-1),hi:null});else 
 $("mhBack").onclick=()=>{const p=MS.stack.pop();if(p){Object.assign(MS,p);MS.fit=false;renderMH()}};$("mhUp").onclick=mhUp;$("mhFit").onclick=()=>{MS.fit=!MS.fit;renderMH()};
 $("mhScope").querySelectorAll("button").forEach(b=>b.onclick=()=>{MS.scope=b.dataset.v;MS.mark=null;renderMH()});
 $("mhBin").querySelectorAll("button").forEach(b=>b.onclick=()=>{MS.bin=b.dataset.v;MS.period=null;MS.mark=null;renderMH()});
+// ---- v0.4 가정 편집 — 고치면 '간격 유지' 규칙으로 날짜를 다시 짜고 주경로를 다시 계산 (파이썬 schedule.reschedule 와 같은 규칙) ----
+// 구동된(원래 간격 ≤ 0 인 선행이 있는) 업무는 선행을 따라 당겨지고 밀림 · 여유가 있던 업무는 여유를 다 쓸 때까지 그대로 · 선행 없는 업무는 그대로
+// 변경 목록(.json)을 내려받아 'python -m engenius_wbs apply 원본.xlsx 변경.json' (scripts\apply.bat) → 원본 형식 그대로 새 판 엑셀
+const ED=new Map(),DEPS0=new Map(),SCH0=SCH;let MOVED={},EDLOAD=0;
+for(const e of D.edges)(DEPS0.get(e[1])||DEPS0.set(e[1],[]).get(e[1])).push({p:e[0],label:e[2],ty:e[3]||"FS",lag:e[4]||0});
+const DEPRE=/^(\d+)\s*(FS|SS|FF|SF|완시|시시|완완|시완)?\s*(?:([+-])\s*([0-9]+(?:\.[0-9]+)?)\s*(%|[^\d\s%]*))?$/i,TYKO={"완시":"FS","시시":"SS","완완":"FF","시완":"SF"};
+function parseDeps(txt){const out=[],bad=[];for(let tok of String(txt||"").normalize("NFKC").split(/[,;]/)){tok=tok.trim();if(!tok)continue;const m=DEPRE.exec(tok);if(!m){bad.push(tok);continue}
+  const ty=TYKO[m[2]]||(m[2]||"FS").toUpperCase();let lag=0,lt="";if(m[3]){lt=`${m[3]}${m[4]}${m[5]||""}`;if(m[5]!=="%"){const u=(m[5]||"").toLowerCase(),f=u===""||u==="일"?1:D.units[u];if(f==null){bad.push(tok);continue}lag=(m[3]==="+"?1:-1)*(+m[4])*f}}
+  out.push({p:+m[1],label:(ty==="FS"?"":ty)+lt,ty,lag})}return{deps:out,bad}}
+const depsText=no=>(ED.get(no)?.preds??(DEPS0.get(no)||[]).map(d=>d.p+d.label).join(","));
+const ORIGE=new Set(D.edges.map(e=>`${e[0]}>${e[1]}>${e[3]||"FS"}>${e[4]||0}`));
+function reschedule(val0,edges,dur,start){const leaf=no=>!T.get(no).kids.length,dOf=no=>dur.has(no)?dur.get(no):val0.get(2*no+1)-val0.get(2*no);
+ const ins=new Map(),outs=new Map(),link=(src,a,dst,w,toF,gap)=>{(ins.get(dst)||ins.set(dst,[]).get(dst)).push([src,a,w,toF,gap]);(outs.get(src)||outs.set(src,[]).get(src)).push([dst])};
+ for(const e of edges){const [a,b]=ENDS[e.ty]||[1,0];if(!val0.has(2*e.p+a)||!val0.has(2*e.s+b))continue;const gap=ORIGE.has(`${e.p}>${e.s}>${e.ty}>${e.lag}`)?val0.get(2*e.s+b)-val0.get(2*e.p+a)-e.lag:Infinity,src=leaf(e.p)?"L"+e.p:(a===0?"R":"F")+e.p;
+  if(leaf(e.s))link(src,a,"L"+e.s,e.lag,b===1,gap);else if(b===0)link(src,a,"C"+e.s,e.lag,false,gap)}
+ for(const t of T.values()){if(!t.kids.length||!val0.has(2*t.no))continue;for(const c of t.kids){if(!val0.has(2*c))continue;const lc=leaf(c);
+  link("C"+t.no,0,lc?"L"+c:"C"+c,0,false,val0.get(2*c)-val0.get(2*t.no));link(lc?"L"+c:"R"+c,0,"R"+t.no,0,false,0);link(lc?"L"+c:"F"+c,1,"F"+t.no,0,false,0)}}
+ const units=new Set([...ins.keys(),...outs.keys()]);for(const no of LEAVES)if(val0.has(2*no))units.add("L"+no);
+ const ul=[...units],comp=sccIds(ul,outs),indeg=new Map(ul.map(u=>[u,0]));
+ for(const [u,l] of outs)for(const [v] of l)if(comp.get(u)!==comp.get(v))indeg.set(v,indeg.get(v)+1);
+ const order=ul.filter(u=>!indeg.get(u));for(let i=0;i<order.length;i++){const u=order[i];for(const [v] of (outs.get(u)||[]))if(comp.get(u)!==comp.get(v)){indeg.set(v,indeg.get(v)-1);if(!indeg.get(v))order.push(v)}}
+ const nv=new Map(),sv=(u,a)=>{const no=+u.slice(1);if(u[0]==="L")return nv.get(u)+(a===1?dOf(no):0);const v=nv.get(u);return v==null?null:v};
+ for(const u of order){const k=u[0],no=+u.slice(1),I=(ins.get(u)||[]).filter(x=>comp.get(x[0])!==comp.get(u));
+  if(k==="R"||k==="F"){let m=null;for(const [src,a] of I){const v=sv(src,a);if(v==null)continue;if(m==null||(k==="R"?v<m:v>m))m=v}nv.set(u,m!=null?m:val0.get(2*no+(k==="F"?1:0)));continue}
+  let r=null,driven=false;for(const [src,a,w,toF,gap] of I){const v=sv(src,a);if(v==null)continue;const q=v+w+Math.min(gap,0)-(toF?dOf(no):0);if(r==null||q>r)r=q;driven=driven||gap<=1e-6}
+  const o=val0.get(2*no);if(k==="L"&&start.has(no))nv.set(u,r==null?start.get(no):Math.max(start.get(no),r));else if(r==null)nv.set(u,k==="L"?o:null);else nv.set(u,driven?r:Math.max(o,r))}
+ const val=new Map();for(const no of LEAVES)if(nv.has("L"+no)){const s=nv.get("L"+no);val.set(2*no,s);val.set(2*no+1,s+dOf(no))}
+ for(const t of BYLV){let a=Infinity,b=-Infinity;for(const c of t.kids)if(val.has(2*c)){a=Math.min(a,val.get(2*c));b=Math.max(b,val.get(2*c+1))}
+  if(a<Infinity){val.set(2*t.no,a);val.set(2*t.no+1,b)}else if(val0.has(2*t.no)){val.set(2*t.no,val0.get(2*t.no));val.set(2*t.no+1,val0.get(2*t.no+1))}}
+ return val}
+function edRecompute(){
+ // 선행 간선 다시 (고친 업무는 고친 선행으로)
+ const edges=[];for(const t of T.values()){const e=ED.get(t.no);const deps=e&&e.preds!=null?parseDeps(e.preds).deps:(DEPS0.get(t.no)||[]);for(const d of deps)if(T.has(d.p)&&d.p!==t.no)edges.push({p:d.p,s:t.no,ty:d.ty,lag:d.lag,label:d.label})}
+ edges.forEach((e,i)=>e.i=i);EDG.length=0;EDG.push(...edges);
+ D.edges=edges.map(e=>{const a=[e.p,e.s,e.label,e.ty,e.lag,null];a.i=e.i;return a});PRE.clear();SUC.clear();
+ for(const e of D.edges){(PRE.get(e[1])||PRE.set(e[1],[]).get(e[1])).push(e);(SUC.get(e[0])||SUC.set(e[0],[]).get(e[0])).push(e)}
+ // 이름·MH·투입인력 (요약 MH 는 원래 '적힌 값 = 아래 합' 이던 것만 차이만큼 — apply 와 같음)
+ for(const t of T.values()){t.name=t.name0;t.mh=t.mh0;t.staff=t.staff0;t.dur=t.dur0}
+ const dv=new Map();for(const [no,e] of ED){const t=T.get(no);if(e.name!=null)t.name=e.name;if(e.duration!=null)t.dur=e.duration;if(e.staff!==undefined)t.staff=e.staff;
+  if(e.man_hours!==undefined){t.mh=e.man_hours;let d=(t.mh||0)-(t.mh0||0),p=t.par;while(p!=null&&T.has(p)&&d){const pt=T.get(p),bl=MHB0.get(p);if(pt.mh0&&bl!=null&&Math.abs(pt.mh0-bl)<=Math.max(.5,Math.abs(pt.mh0)*1e-6))dv.set(p,(dv.get(p)||0)+d);p=pt.par}}}
+ for(const [p,d] of dv)if(!(ED.get(p)&&ED.get(p).man_hours!==undefined))T.get(p).mh=Math.round(((T.get(p).mh0||0)+d)*1e6)/1e6;
+ for(const no of LEAVES)MH.set(no,T.get(no).mh||0);for(const t of BYLV){let m=0;for(const k of t.kids)m+=MH.get(k);MH.set(t.no,m)}
+ // 날짜 다시 짜기 → 주경로
+ const dur=new Map(),start=new Map();for(const [no,e] of ED){if(e.duration!=null)dur.set(no,e.duration);if(e.start)start.set(no,wnum(Date.parse(e.start)/864e5))}
+ const timed=[...ED.values()].some(e=>e.preds!=null||e.duration!=null||e.start);
+ const val=timed?reschedule(BASE.val,EDG,dur,start):BASE.val;SCH=timed?schedule(val,EDG,BASE.excl):SCH0;
+ MOVED={};for(const t of T.values()){t.st=t.st0;t.fi=t.fi0;const k=2*t.no;if(!val.has(k)||!BASE.val.has(k))continue;
+  if(Math.abs(val.get(k)-BASE.val.get(k))<1e-9&&Math.abs(val.get(k+1)-BASE.val.get(k+1))<1e-9)continue;
+  if(t.kids.length){const o=SPAN0.get(t.no);if(!o||o[0]!==t.st0||o[1]!==t.fi0)continue}   // C11: 엑셀 요약 날짜를 손으로 잡은 것 — 그대로
+  const f=val.get(k+1),s0=val.get(k);t.st=f-s0<1e-9?fDate(f):sDate(s0);t.fi=fDate(f);MOVED[t.no]=[t.st,t.fi]}
+ SPAN.clear();sp(ROOTS);MHC=null;edSave();edChip()}
+let MHB0=null;(()=>{const below=new Map();const post=no=>{const t=T.get(no);let any=false,sum=0;for(const k of t.kids){post(k);const kt=T.get(k);if(below.get(k)!=null){sum+=below.get(k);any=true}else if(kt.mh){sum+=kt.mh;any=true}}if(any)below.set(no,sum)};
+ ROOTS.forEach(post);MHB0=below})();
+function edChanges(){const out=[];for(const [no,e] of ED){const t=T.get(no),b={no,wbs:t.wbs};
+  if(e.duration!=null)out.push({...b,field:"duration",from:Math.round((BASE.val.get(2*no+1)-BASE.val.get(2*no))*1000)/1000,to:e.duration});
+  if(e.start)out.push({...b,field:"start",from:t.st0,to:e.start});
+  if(e.preds!=null)out.push({...b,field:"preds",from:(DEPS0.get(no)||[]).map(d=>d.p+d.label).join(","),to:e.preds});
+  if(e.name!=null)out.push({...b,field:"name",from:t.name0,to:e.name});
+  if(e.man_hours!==undefined)out.push({...b,field:"man_hours",from:t.mh0,to:e.man_hours});
+  if(e.staff!==undefined)out.push({...b,field:"staff",from:t.staff0,to:e.staff})}return out}
+const EDKEY="wbs-edits:"+(D.sha256||D.source);
+function edSave(){try{if(ED.size)localStorage.setItem(EDKEY,JSON.stringify([...ED]));else localStorage.removeItem(EDKEY)}catch(e){}}
+function edChip(){const c=$("edChip");if(!ED.size){c.style.display="none";return}const d=Math.round(SCH.end-SCH0.end);
+ c.style.display="";c.textContent=`✎ 가정 편집 ${ED.size}업무 · 완료 ${fDate(SCH.end)} (${d>0?"+":""}${d} 평일)`+(EDLOAD?" · 지난번 것 불러옴":"")}
+$("edChip").onclick=()=>document.querySelector('nav button[data-t="cp"]').click();
+function edForm(no){const t=T.get(no),e=ED.get(no)||{},leaf=!t.kids.length,d0=BASE.val.has(2*no)?Math.round((BASE.val.get(2*no+1)-BASE.val.get(2*no))*1000)/1000:null;
+ let h=`<h3>✎ 가정 편집 <span class="mut">${ED.has(no)?"고침":""}</span></h3><table class="ed">`;
+ if(leaf)h+=`<tr><td>기간</td><td><input type="number" id="edDur" min="0" step="1" value="${e.duration??d0??""}"> 평일 <span class="mut">원래 ${d0??"-"}</span></td></tr>
+  <tr><td>시작</td><td><input type="date" id="edSt" value="${e.start||""}"> 이후 <span class="mut">비우면 선행을 따름</span></td></tr>`;
+ h+=`<tr><td>선행</td><td><input type="text" id="edPre" value="${esc(depsText(no))}" title="MS Project 표기 — 12,15SS+5일,20FF"></td></tr><tr><td>이름</td><td><input type="text" id="edNm" value="${esc(e.name??t.name0)}"></td></tr>`;
+ if(leaf)h+=`<tr><td>Man Hours</td><td><input type="number" id="edMh" min="0" value="${e.man_hours!==undefined?(e.man_hours??""):(t.mh0??"")}"></td></tr>`;
+ h+=`</table><button class="eb pri" id="edApply">적용 → 다시 계산</button>${ED.has(no)?'<button class="eb" id="edUndo">이 업무 되돌리기</button>':""}<div id="edMsg" class="mut" style="font-size:12px">날짜는 '간격 유지' 규칙으로 다시 짬 — ④ 주경로 탭에서 변경 목록 내려받기</div>`;return h}
+function bindEdForm(no){const ap=$("edApply");if(!ap)return;const t=T.get(no),leaf=!t.kids.length;
+ ap.onclick=()=>{const e={},msg=$("edMsg"),err=m=>{msg.innerHTML=`<span class="err">${esc(m)}</span>`};
+  if(leaf){const dv=$("edDur").value.trim(),d0=Math.round((BASE.val.get(2*no+1)-BASE.val.get(2*no))*1000)/1000;if(dv!==""){const d=+dv;if(!(d>=0))return err("기간은 0 이상 숫자");if(BASE.val.has(2*no)&&Math.abs(d-d0)>1e-9)e.duration=d;else if(!BASE.val.has(2*no))return err("날짜가 없는 업무는 기간을 다시 짤 수 없음")}
+   const sv=$("edSt").value;if(sv)e.start=sv;const mv=$("edMh").value.trim(),m=mv===""?null:+mv;if(mv!==""&&!(m>=0))return err("Man Hours 는 0 이상 숫자");if(m!==(t.mh0??null))e.man_hours=m}
+  const pt=$("edPre").value.trim(),pr=parseDeps(pt);if(pr.bad.length)return err("선행 표기를 읽지 못함: "+pr.bad.join(", "));
+  const miss=pr.deps.filter(d=>!T.has(d.p)||d.p===no).map(d=>d.p);if(miss.length)return err("없는 번호·자기 자신: "+miss.join(", "));
+  const norm=x=>parseDeps(x).deps.map(d=>d.p+d.ty+d.lag).sort().join(",");if(norm(pt)!==norm((DEPS0.get(no)||[]).map(d=>d.p+d.label).join(",")))e.preds=pt;
+  const nm=$("edNm").value.trim();if(nm&&nm!==t.name0)e.name=nm;
+  EDLOAD=0;if(Object.keys(e).length)ED.set(no,e);else ED.delete(no);edRecompute();keepView=true;draw()};
+ const un=$("edUndo");if(un)un.onclick=()=>{EDLOAD=0;ED.delete(no);edRecompute();keepView=true;draw()}}
+function edBox(){if(!ED.size)return `<div class="mut" style="font-size:12px;margin-bottom:8px">✎ 가정 편집 — 간트에서 하위 업무를 고르고 오른쪽 패널에서 기간·시작·선행을 바꾸면 날짜와 주경로를 바로 다시 계산합니다.</div>`;
+ const d=Math.round(SCH.end-SCH0.end),ch=edChanges(),lab={duration:"기간",start:"시작",preds:"선행",name:"이름",man_hours:"MH",staff:"투입인력"};
+ let h=`<div class="edbox"><b>✎ 가정 편집 ${ED.size}업무</b><div style="font-size:12px">사업 완료 ${fDate(SCH0.end)} → <b>${fDate(SCH.end)}</b> (${d>0?"+":""}${d} 평일) · 날짜 바뀐 업무 ${Object.keys(MOVED).length.toLocaleString()}</div>`;
+ for(const [no] of ED){const xs=ch.filter(c=>c.no===no).map(c=>`${lab[c.field]} ${c.from??"-"}→${c.to??"-"}`).join(" · ");h+=`<div class="it"><span class="lnk" data-n="${no}">${no}</span><span>${esc(T.get(no).name)}: ${esc(xs)}</span><span class="x" data-x="${no}" title="되돌리기">✕</span></div>`}
+ return h+`<button class="pri" id="edDown" title="apply.bat 에 원본 엑셀과 함께 끌어다 놓으면 원본 형식 그대로 새 판 엑셀">변경 목록 내려받기 (.json)</button><button id="edClear">모두 되돌리기</button></div>`}
+function bindEdBox(){const el=$("cpGrp");el.querySelectorAll(".edbox .x").forEach(x=>x.onclick=()=>{EDLOAD=0;ED.delete(+x.dataset.x);edRecompute();renderCP()});
+ el.querySelectorAll(".edbox .lnk").forEach(x=>x.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+x.dataset.n)});
+ const dn=$("edDown");if(dn)dn.onclick=edDownload;const cl=$("edClear");if(cl)cl.onclick=()=>{if(!confirm("가정 편집을 모두 되돌릴까요?"))return;EDLOAD=0;ED.clear();edRecompute();renderCP()}}
+function edDownload(){const now=new Date(),p=n=>String(n).padStart(2,"0"),stamp=`${now.getFullYear()}${p(now.getMonth()+1)}${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}`;
+ const body={format:"engenius-wbs-changes/1",source:D.source,sheet:D.sheet,sha256:D.sha256,created:now.toISOString().slice(0,19),rule:"간격 유지 v1",
+  changes:edChanges(),result:{end_before:fDate(SCH0.end),end:fDate(SCH.end),moved:MOVED}};
+ const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(body,null,1)],{type:"application/json"}));a.download=`${D.source.replace(/\.xlsx$/i,"")}_변경_${stamp}.json`;
+ document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+// 지난번 편집 불러오기 (이 원본 판에서 만든 것만)
+try{const sv=JSON.parse(localStorage.getItem(EDKEY)||"null");if(Array.isArray(sv)&&sv.length){for(const [no,e] of sv)if(T.has(no))ED.set(no,e);EDLOAD=ED.size;if(ED.size)edRecompute()}}catch(e){}
 // ---- ④ 주경로 — 날짜 기준 총 여유. 무엇이 사업 완료를 쥐고 있나 (파이썬 schedule.py 와 같은 계산) ----
 function cpDrive(no){return (PRE.get(no)||[]).filter(e=>{const g=SCH.gaps[e.i];return g!=null&&g<=1e-6})}
 const cpWd=no=>SCH.val.get(2*no+1)-SCH.val.get(2*no);
@@ -600,7 +704,7 @@ function renderCP(){$("cpCrit").value=CP.crit;$("cpNear").value=CP.near;$("cpNea
  for(const [k,x] of grows)h+=`<div class="cpg${CP.focus===k?" on":""}" data-k="${esc(k)}" title="${esc(k)} — 누르면 오른쪽 목록을 이것만 (다시 누르면 전부)"><span class="nm">${esc(k)}</span><span class="bar"><i style="width:${Math.max(2,x.d/gmax*100)}%"></i></span><span class="v">${Math.round(x.d).toLocaleString()}일 · ${x.n}</span></div>`;
  if(!grows.length)h+=`<div class="mut">이 범위에는 주경로 업무가 없습니다.</div>`;
  h+=`<div class="mut" style="margin-top:8px">같은 날 나란히 가는 주경로 업무는 겹쳐 셈 — 어디를 줄일지 크기를 견주는 용도</div>`;
- $("cpGrp").innerHTML=h;
+ $("cpGrp").innerHTML=edBox()+h;bindEdBox();
  $("cpGrpBy").querySelectorAll("button").forEach(b=>b.onclick=()=>{CP.group=+b.dataset.v;CP.focus=null;renderCP()});
  $("cpGrp").querySelectorAll(".cpg").forEach(r=>r.onclick=()=>{const k=r.dataset.k;CP.focus=CP.focus===k?null:k;renderCP()});
  // 목록 — 시작 순
@@ -614,7 +718,7 @@ function renderCP(){$("cpCrit").value=CP.crit;$("cpNear").value=CP.near;$("cpNea
  const toGr=no=>{document.querySelector('nav button[data-t="gr"]').click();goTask(no)};
  $("cpList").querySelectorAll("tr.r").forEach(r=>r.onclick=()=>toGr(+r.dataset.n));
  $("cpList").querySelectorAll(".lnk[data-n]").forEach(x=>x.onclick=ev=>{ev.stopPropagation();toGr(+x.dataset.n)});
- $("cpInfo").innerHTML=`파이썬 계산과 대조 ${CPCHK.bad?`<span class="err">불일치 ${CPCHK.bad}</span>`:"일치 ✓"} (${CPCHK.n.toLocaleString()} 값) · 순환 때문에 뺀 간선 ${SCH.dropped}`;
+ $("cpInfo").innerHTML=(ED.size?"가정 편집 반영 중 (대조는 원래 날짜 기준) · ":"")+`파이썬 계산과 대조 ${CPCHK.bad?`<span class="err">불일치 ${CPCHK.bad}</span>`:"일치 ✓"} (${CPCHK.n.toLocaleString()} 값) · 순환 때문에 뺀 간선 ${SCH.dropped}`;
  writeHash()}
 $("cpScope").querySelectorAll("button").forEach(b=>b.onclick=()=>{CP.scope=b.dataset.v;CP.focus=null;renderCP()});
 $("cpCrit").onchange=()=>{CP.crit=+$("cpCrit").value||0;if(CP.near<CP.crit)CP.near=CP.crit;renderCP()};

@@ -101,10 +101,14 @@ def event_values(tasks) -> tuple[dict[int, float], list[int]]:
     return val, sorted(excluded)
 
 
-def date_schedule(tasks, edges, crit_days: float = 0.0, near_days: float = 5.0) -> Schedule:
+def date_schedule(tasks, edges, crit_days: float = 0.0, near_days: float = 5.0, val: dict[int, float] | None = None) -> Schedule:
+    """val 을 주면 그 사건 값(가정 편집으로 다시 짠 것)으로, 아니면 엑셀 날짜로."""
     from .analyze import tarjan, topo
 
-    val, excluded = event_values(tasks)
+    if val is None:
+        val, excluded = event_values(tasks)
+    else:
+        excluded = sorted(t.no for t in tasks.values() if not t.children and 2 * t.no not in val)
     arcs: dict[int, list[tuple[int, float]]] = {}
 
     def arc(a, b, w):
@@ -161,3 +165,113 @@ def date_schedule(tasks, edges, crit_days: float = 0.0, near_days: float = 5.0) 
     rest = [fl[t.no] for t in leaves if fl[t.no] > crit_days + EPS]
     sch.next_float = round(min(rest), 3) if rest else None
     return sch
+
+
+# --- v0.4 가정 편집: 다시 짜기 ('간격 유지') ------------------------------------------------------------
+# 고치지 않으면 날짜가 하나도 안 바뀐다. 단위 = 하위 업무 L · 요약 시작 제약 C · 요약 실제 시작 R · 요약 완료 F.
+#   선행 간선: 출발 = 하위 업무의 시작/완료 또는 요약의 R/F, 도착 = 하위 업무(완료 쪽이면 기간을 빼 시작 요구로) 또는 요약 C.
+#   요약으로 들어오는 FF·SF 는 쓰지 않는다 (근사). 위 요약의 C 는 아래 C·L 에 0 간선.
+#   L·C: 원래 간격이 음수인 간선은 그만큼 느슨하게. 구동된(원래 간격 ≤ 0 인 간선이 있는) 것은 요구의 최대,
+#   아니면 max(원래, 요구). 간선 없는 L 은 원래 그대로, C 는 '제약 없음'. 시작을 고친 L 은 max(고친 날, 요구).
+#   새로 더한 선행(orig 에 없는 것)은 원래 간격이 없다 — 미는 쪽으로만 (구동으로 치지 않고, 느슨하게 하지 않음).
+#   선행을 지워도 저절로 당겨지지는 않는다 (당기려면 시작을 고친다).
+
+def reschedule(tasks, edges, val0: dict[int, float], dur: dict[int, float] | None = None,
+               start: dict[int, float] | None = None, orig: set | None = None) -> dict[int, float]:
+    """val0 = event_values(원래 날짜). dur = {하위 업무: 새 기간(평일)}, start = {하위 업무: '이 날 이후' 평일 번호}.
+    orig = 원래 선행 {(선행, 후속, 종류, 지연)} — 없으면 edges 전부를 원래 것으로 본다. → 새 사건 값."""
+    from .analyze import tarjan, topo
+
+    dur, start = dur or {}, start or {}
+
+    def leaf(no):
+        return not tasks[no].children
+
+    def d_of(no):
+        return dur.get(no, val0[2 * no + 1] - val0[2 * no])
+
+    # 단위 키: ("L", no) · ("C", no) · ("R", no) · ("F", no)
+    ins: dict[tuple, list] = {}             # 도착 단위 → [(출발 단위, 출발 쪽 0/1, 가중치, 도착이 완료 쪽인가, 원래 간격)]
+    outs: dict[tuple, list] = {}
+
+    def link(src, a, dst, w, to_f, gap):
+        ins.setdefault(dst, []).append((src, a, w, to_f, gap))
+        outs.setdefault(src, []).append(dst)
+
+    def orig_src(no, a):
+        return val0[2 * no + a]
+
+    for e in edges:
+        p, s = e.pred, e.succ
+        a, b = ends(e.type)
+        if 2 * p + a not in val0 or 2 * s + b not in val0:
+            continue
+        lag = e.lag_days or 0.0
+        gap = val0[2 * s + b] - val0[2 * p + a] - lag if orig is None or (p, s, e.type, lag) in orig else math.inf
+        src = ("L", p) if leaf(p) else (("R", p) if a == 0 else ("F", p))
+        if leaf(s):
+            link(src, a, ("L", s), lag, b == 1, gap)
+        elif b == 0:
+            link(src, a, ("C", s), lag, False, gap)
+    for t in tasks.values():
+        if not t.children or 2 * t.no not in val0:
+            continue
+        for c in t.children:
+            if 2 * c not in val0:
+                continue
+            link(("C", t.no), 0, ("L", c) if leaf(c) else ("C", c), 0.0, False, val0[2 * c] - val0[2 * t.no])
+            link(("L", c) if leaf(c) else ("R", c), 0, ("R", t.no), 0.0, False, 0.0)
+            link(("L", c) if leaf(c) else ("F", c), 1, ("F", t.no), 0.0, False, 0.0)
+    units = sorted(set(ins) | set(outs) | {("L", t.no) for t in tasks.values() if not t.children and 2 * t.no in val0})
+    comps = tarjan(units, outs)
+    comp_of = {u: i for i, c in enumerate(comps) for u in c}
+    order = topo(units, {u: [v for v in outs.get(u, ()) if comp_of[u] != comp_of[v]] for u in units})
+    nv: dict[tuple, float | None] = {}
+
+    def src_val(u, a):
+        kind, no = u
+        if kind == "L":
+            return nv[u] + (d_of(no) if a == 1 else 0.0)
+        return nv.get(u)
+
+    for u in order:
+        kind, no = u
+        if kind in ("R", "F"):
+            kids = [src_val(src, a) for src, a, _, _, _ in ins.get(u, ()) if comp_of[src] != comp_of[u]]
+            kids = [k for k in kids if k is not None]
+            nv[u] = (min(kids) if kind == "R" else max(kids)) if kids else val0[2 * no + (kind == "F")]
+            continue
+        reqs, driven = [], False
+        for src, a, w, to_f, gap in ins.get(u, ()):
+            if comp_of[src] == comp_of[u]:
+                continue
+            v = src_val(src, a)
+            if v is None:
+                continue
+            r = v + w + min(gap, 0.0) - (d_of(no) if to_f else 0.0)
+            reqs.append(r)
+            driven = driven or gap <= EPS
+        o = val0[2 * no]
+        if kind == "L" and no in start:
+            nv[u] = max([start[no]] + reqs)
+        elif not reqs:
+            nv[u] = o if kind == "L" else None
+        elif driven:
+            nv[u] = max(reqs)
+        else:
+            nv[u] = max([o] + reqs)
+    val = {}
+    for t in tasks.values():
+        if not t.children and ("L", t.no) in nv:
+            s = nv[("L", t.no)]
+            val[2 * t.no], val[2 * t.no + 1] = s, s + d_of(t.no)
+    for t in sorted(tasks.values(), key=lambda x: -x.level):
+        if not t.children:
+            continue
+        ss = [val[2 * c] for c in t.children if 2 * c in val]
+        if ss:
+            val[2 * t.no] = min(ss)
+            val[2 * t.no + 1] = max(val[2 * c + 1] for c in t.children if 2 * c + 1 in val)
+        elif 2 * t.no in val0:
+            val[2 * t.no], val[2 * t.no + 1] = val0[2 * t.no], val0[2 * t.no + 1]
+    return val

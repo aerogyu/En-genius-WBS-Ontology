@@ -4,6 +4,8 @@
         → <폴더>/report.xlsx · wbs_view.html · wbs.ttl · derived.ttl · run_log.json (기본 output/<시각>/)
     synth [--out data/synthetic/wbs_synthetic.xlsx] [--rows 12827] [--seed 7]
         → 가짜 WBS 엑셀 (실데이터 없이 시험할 때)
+    apply <원본 WBS.xlsx> <변경 목록.json> [--out 폴더] [--config wbs.yaml] [--force] [--no-build]
+        → <원본>_수정_v01.xlsx (원본 형식 그대로, 원본은 안 건드림) + .changes.json, 이어서 그 파일로 build
 """
 from __future__ import annotations
 
@@ -43,7 +45,7 @@ def cmd_build(a) -> int:
     an = analyze(w, cfg)
     t2 = time.perf_counter()
     rep = write_report(w, an, cfg, out / "report.xlsx")
-    view = write_html(w, an, out / "wbs_view.html", a.title or "WBS 선후 관계")
+    view = write_html(w, an, out / "wbs_view.html", a.title or "WBS 선후 관계", cfg)
     ttl = write_ttl(w, an, cfg, out, f"WRUN-{stamp}")
     t3 = time.perf_counter()
     issues = all_issues(w, an)
@@ -68,6 +70,39 @@ def cmd_build(a) -> int:
     print("  · 문제: " + (" · ".join(f"{k} {v}" for k, v in sorted(cnt.items())) or "없음"))
     print(f"  · 보고서 {rep.name} · 보기 {view.name} · {ttl[0].name} · {ttl[1].name}  ({t3 - t0:.1f}초)")
     return 0
+
+
+def cmd_apply(a) -> int:
+    from .apply import apply_changes
+    xs = [Path(f) for f in a.files if Path(f).suffix.lower() == ".xlsx"]
+    js = [Path(f) for f in a.files if Path(f).suffix.lower() == ".json"]
+    if len(xs) != 1 or len(js) != 1:
+        print("[NG] 원본 WBS 엑셀(.xlsx) 하나와 변경 목록(.json) 하나를 주세요 (순서 상관없음)")
+        return 2
+    for f in xs + js:
+        if not f.exists():
+            print(f"[NG] 파일이 없다: {f}")
+            return 2
+    cfg = load_config(a.config)
+    try:
+        r = apply_changes(xs[0], js[0], cfg, a.out, a.force)
+    except ValueError as e:
+        print(f"[NG] {e}")
+        return 2
+    print(f"[apply] {xs[0].name} + {js[0].name} → {r.out}")
+    print(f"  · 고친 칸 {r.cells:,} · 날짜가 바뀐 업무 {len(r.moved):,} · 사업 완료 {r.end_before} → {r.end_after}")
+    if r.kept_summaries:
+        print(f"  · 엑셀 요약 날짜가 하위 범위와 달라(C11) 그대로 둔 요약 {len(r.kept_summaries)}: " + ", ".join(map(str, r.kept_summaries[:10])))
+    if r.mismatches:
+        print(f"  · [주의] 보기 HTML 계산과 다른 것 {len(r.mismatches)}: " + " / ".join(r.mismatches[:5]))
+    elif r.checked:
+        print("  · 보기 HTML 계산과 일치 ✓")
+    else:
+        print("  · (변경 목록에 보기 결과가 없어 대조하지 않음)")
+    if a.no_build:
+        return 0
+    b = argparse.Namespace(xlsx=str(r.out), sheet=None, out=None, config=a.config, title=None)
+    return cmd_build(b)
 
 
 def cmd_synth(a) -> int:
@@ -95,8 +130,14 @@ def main(argv=None) -> int:
     s.add_argument("--out", default=str(REPO_ROOT / "data" / "synthetic" / "wbs_synthetic.xlsx"))
     s.add_argument("--rows", type=int, default=12827)
     s.add_argument("--seed", type=int, default=7)
+    p = sub.add_parser("apply", help="보기 HTML 의 변경 목록을 원본 엑셀에 반영해 새 판 엑셀을 쓴다")
+    p.add_argument("files", nargs=2, help="원본 WBS .xlsx 와 변경 목록 .json (순서 상관없음)")
+    p.add_argument("--out")
+    p.add_argument("--config")
+    p.add_argument("--force", action="store_true", help="원본 sha256 이 달라도 적용")
+    p.add_argument("--no-build", action="store_true", help="새 엑셀로 build 하지 않음")
     a = ap.parse_args(argv)
-    return cmd_build(a) if a.cmd == "build" else cmd_synth(a)
+    return {"build": cmd_build, "synth": cmd_synth, "apply": cmd_apply}[a.cmd](a)
 
 
 if __name__ == "__main__":

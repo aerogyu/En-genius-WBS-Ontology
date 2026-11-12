@@ -24,6 +24,7 @@ Tool 온톨로지·워크플로 온톨로지·자료 조사의 형제 저장소.
 
 ```
 python -m engenius_wbs build <WBS.xlsx> [--sheet 시트] [--out 폴더]     # 사내: WBS 엑셀을 scripts\build.bat 에 끌어다 놓기
+python -m engenius_wbs apply <WBS.xlsx> <변경.json> [--out 폴더]      # 가정 편집 반영 → 새 판 엑셀 (scripts\apply.bat 에 두 파일을 함께 끌어다 놓기)
 python -m engenius_wbs synth [--rows 12827]                           # 가짜 WBS → data/synthetic/wbs_synthetic.xlsx
 python -m pytest                                                     # scripts\selftest.bat
 ```
@@ -34,11 +35,16 @@ python -m pytest                                                     # scripts\s
 1. GitHub `aerogyu/En-genius-WBS-Ontology` → **Code → Download ZIP** (`En-genius-WBS-Ontology-main.zip`, 약 1 MB — 합성 WBS 엑셀 포함) → 반입.
 2. 풀어서 **Tool 온톨로지와 같은 부모 폴더**에 둔다 — 예: `C:\EnGenius\engenius-wbs-ontology` (옆에 `C:\EnGenius\engenius-tool-ontology` 가 있어야 한다).
    다른 곳이면 `scripts\env.bat` 의 `TOOL_ONTO_DIR` 를 Tool 온톨로지 폴더로 고친다. 따로 설치할 것 없음 (그쪽 `.venv` 를 쓴다).
-3. `scripts\selftest.bat` 더블클릭 → `26 passed` · `rc=0`.
+3. `scripts\selftest.bat` 더블클릭 → `28 passed` · `rc=0`.
 4. WBS 엑셀(.xlsx — 첫 시트를 읽는다)을 `scripts\build.bat` 위에 끌어다 놓기 → 출력 폴더의 `wbs_view.html`(브라우저)·`report.xlsx`.
    WBS 가 첫 시트가 아니면: `scripts\env.bat` 실행 뒤 `"%PY%" -m engenius_wbs build <파일> --sheet <시트 이름>`.
 5. `P01 헤더를 찾지 못함` 이면 헤더 문구가 별칭에 없다 → `config\wbs.yaml` 을 `data\real\config\wbs.yaml` 로 복사해 `columns` 에 그 문구를 더한다.
-6. 밖으로 가져올 수 있는 것은 `run_log.json` 의 건수(문제 코드별 건수·업무 수·걸린 시간)뿐 — 보고서·HTML·TTL 은 업무 이름이 든 사내 자료.
+6. **WBS 고치기 (가정 편집)**: 보기에서 하위 업무를 고르고 오른쪽 패널 '✎ 가정 편집' 에서 기간·시작·선행·이름·MH 를 바꾸면 날짜·주경로가 바로 다시 계산된다
+   (고친 것은 브라우저에 남아 다시 열어도 그대로). ④ 주경로 탭 '변경 목록 내려받기' → 받은 `.json` 과 **원본 WBS 엑셀을 함께** `scripts\apply.bat` 위에 끌어다 놓기
+   → 원본 옆에 `<원본>_수정_v01.xlsx`(원본 형식 그대로, 바뀐 칸만 고침, 원본은 그대로) + `.changes.json`(무엇을 고쳤나), 이어서 그 파일로 build.
+   날짜는 '간격 유지' 규칙으로 다시 짠다 — 선행에 바로 밀리던 업무는 따라 움직이고, 여유가 있던 업무는 여유를 다 쓸 때까지 그대로, 새로 더한 선행은 미는 쪽으로만.
+   선행을 지워도 저절로 당겨지지 않는다 (당기려면 시작을 고친다). 행 추가·삭제는 아직 안 된다.
+7. 밖으로 가져올 수 있는 것은 `run_log.json` 의 건수(문제 코드별 건수·업무 수·걸린 시간)뿐 — 보고서·HTML·TTL 은 업무 이름이 든 사내 자료.
 
 ## 산출물 (`output/<시각>/`)
 

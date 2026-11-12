@@ -17,7 +17,9 @@ from engenius_wbs.config import load_config
 from engenius_wbs.parse import parse_date, parse_deps, parse_duration, read_wbs
 from engenius_wbs.rdfout import build_graphs
 from engenius_wbs.report import write_report
-from engenius_wbs.schedule import date_schedule, finish_date, start_date, wdate, widx
+from engenius_wbs.analyze import Edge
+from engenius_wbs.apply import apply_changes, sha256_of
+from engenius_wbs.schedule import date_schedule, event_values, finish_date, reschedule, start_date, wdate, widx
 from engenius_wbs.synth import date_text, generate, workday
 from engenius_wbs.viz import write_html
 
@@ -143,6 +145,71 @@ def test_small_date_schedule(small):
     assert sc3.critical == [6, 11, 7, 10, 12] and sc3.next_float is None
 
 
+def test_reschedule_rules(small):
+    """'간격 유지' 다시 짜기 — 고치지 않으면 그대로 · 구동된 업무는 따라 당겨지고 밀림 · 여유가 있으면 여유를 다 쓸 때까지 그대로."""
+    w, a = small
+    T, val0 = w.tasks, event_values(w.tasks)[0]
+    b = val0[2 * 6]                                                                  # A 시작 = 평일 0
+    assert reschedule(T, a.edges, val0) == val0
+    v = reschedule(T, a.edges, val0, dur={7: 1.0})                                   # B 3 → 1: C·E 2 평일 당겨짐, D 그대로
+    assert (v[2 * 10] - b, v[2 * 12] - b, v[2 * 12 + 1] - b, v[2 * 11] - b) == (8, 12, 14, 0)
+    sc = date_schedule(T, a.edges, 0, 5, val=v)
+    assert sc.end - sc.start == 14 and sc.float_[11] == 4 and sc.critical == [6, 7, 10, 12]
+    v = reschedule(T, a.edges, val0, dur={11: 18.0})                                 # D 10 → 18: FF 여유 6 을 넘어 E 를 2 밂
+    assert (v[2 * 12] - b, v[2 * 12 + 1] - b) == (16, 18)
+    assert date_schedule(T, a.edges, 0, 5, val=v).critical == [6, 11, 12]
+    v = reschedule(T, a.edges, val0, start={11: b + 3})                                  # D '이 날 이후' +3 → D 만 밀림 (E 는 C 가 쥠)
+    assert (v[2 * 11] - b, v[2 * 12] - b) == (3, 14)
+    only_ff = [e for e in a.edges if (e.pred, e.succ) != (10, 12)]                   # E 의 선행을 D(FF, 여유 6) 하나로 → 구동 안 됨
+    v = reschedule(T, only_ff, val0, dur={11: 8.0})
+    assert v[2 * 12] - b == 14                                                           # 여유 안에서 줄어든 것은 E 를 당기지 않음
+    orig = {(e.pred, e.succ, e.type, e.lag_days or 0.0) for e in a.edges}
+    v = reschedule(T, a.edges + [Edge(10, 11, "FS", 0.0, "")], val0, orig=orig)      # 새 선행 C → D: D 가 C 뒤로 밀리고 FF 로 E 도
+    assert (v[2 * 11] - b, v[2 * 11 + 1] - b, v[2 * 12] - b, v[2 * 12 + 1] - b) == (14, 24, 22, 24)
+    v = reschedule(T, a.edges + [Edge(6, 12, "FS", 0.0, "")], val0, orig=orig)       # 이미 지켜지는 새 선행(A → E)은 아무것도 안 바꿈
+    assert v == val0
+
+
+def test_apply_roundtrip(small, tmp_path):
+    import json
+    import shutil
+    w, a = small
+    src = tmp_path / "small.xlsx"
+    shutil.copyfile(w.source, src)
+    sha = sha256_of(src)
+    ch = {"format": "engenius-wbs-changes/1", "source": "small.xlsx", "sheet": w.sheet, "sha256": sha,
+          "changes": [{"no": 7, "field": "duration", "from": 3, "to": 1},
+                      {"no": 12, "field": "preds", "from": "10,11FF", "to": "10"},
+                      {"no": 11, "field": "name", "from": "D", "to": "D 바꿈"},
+                      {"no": 11, "field": "man_hours", "from": 160, "to": 100}],
+          "result": {"end": "2027-01-20", "moved": {"7": ["2027-01-08", "2027-01-08"], "10": ["2027-01-13", "2027-01-18"],
+                                                     "12": ["2027-01-19", "2027-01-20"]}}}   # 요약은 엑셀 날짜가 비어 있어 안 씀
+    (tmp_path / "ch.json").write_text(json.dumps(ch, ensure_ascii=False), encoding="utf-8")
+    r = apply_changes(src, tmp_path / "ch.json", CFG)
+    assert r.out.name == "small_수정_v01.xlsx" and sha256_of(src) == sha and not r.mismatches, r.mismatches
+    assert (r.end_before, r.end_after) == (date(2027, 1, 22), date(2027, 1, 20)) and r.out.with_suffix(".changes.json").exists()
+    w2 = read_wbs(r.out, CFG)
+    t7, t12, t11, t10 = w2.tasks[7], w2.tasks[12], w2.tasks[11], w2.tasks[10]
+    assert (t7.duration_text, t7.start, t7.finish) == ("1 일", date(2027, 1, 8), date(2027, 1, 8))
+    assert [d.pred for d in t12.deps] == [10] and (t11.name, t11.man_hours) == ("D 바꿈", 100)
+    assert w2.tasks[1].finish is None and not r.kept_summaries
+    ws = load_workbook(r.out, read_only=True).worksheets[0]
+    cells = {row[0]: row for row in ws.iter_rows(min_row=4, values_only=True)}
+    assert cells[10][4] == "27-01-13 (수)" and cells[11][7] is None and cells[7][7] == "10"     # 날짜 글자 모양 · 후속 열(H) 다시 씀
+    assert cells[11][2].startswith("               D 바꿈") and cells[11][8] == "가나다"      # 들여쓰기 유지 · 다른 칸 그대로
+    a2 = analyze(w2)
+    assert not a2.issues and a2.schedule.end_date == date(2027, 1, 20)
+    assert apply_changes(src, tmp_path / "ch.json", CFG).out.name == "small_수정_v02.xlsx"           # 덮어쓰지 않음
+    ch["result"]["end"] = "2027-01-21"
+    (tmp_path / "bad.json").write_text(json.dumps(ch, ensure_ascii=False), encoding="utf-8")
+    (tmp_path / "o").mkdir()
+    assert any("사업 완료" in m for m in apply_changes(src, tmp_path / "bad.json", CFG, tmp_path / "o").mismatches)   # 보기 결과와 다르면 알림
+    ch["sha256"] = "0" * 64
+    (tmp_path / "other.json").write_text(json.dumps(ch, ensure_ascii=False), encoding="utf-8")
+    with pytest.raises(ValueError):
+        apply_changes(src, tmp_path / "other.json", CFG)
+
+
 def test_small_outputs(small, tmp_path):
     w, a = small
     g, d = build_graphs(w, a, CFG, "WRUN-TEST")
@@ -161,7 +228,8 @@ def test_small_outputs(small, tmp_path):
     for piece in ('id="tree"', 'id="filters"', 'id="grain"', 'id="lane"', 'id="quick"', 'data-v="time"', 'data-v="flow"', 'id="side"',
                   'id="copyLink"', 'data-v="gantt"', 'id="lines"', 'id="gantt"', '"source":"small.xlsx"',
                   'data-t="mh"', 'id="mhChart"', 'id="mhComp"', 'id="msk"', '"mh":{"months":',
-                  'data-t="cp"', 'id="cpList"', 'id="cpGrp"', 'data-q="cp"', '"cp":{"crit_days":0'):
+                  'data-t="cp"', 'id="cpList"', 'id="cpGrp"', 'data-q="cp"', '"cp":{"crit_days":0',
+                  'id="edChip"', 'function reschedule(', 'function edDownload(', '"sha256":"', '"units":{'):
         assert piece in text, piece
 
 
