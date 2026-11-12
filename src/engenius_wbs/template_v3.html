@@ -588,6 +588,10 @@ $("mhBin").querySelectorAll("button").forEach(b=>b.onclick=()=>{MS.bin=b.dataset
 // 구동된(원래 간격 ≤ 0 인 선행이 있는) 업무는 선행을 따라 당겨지고 밀림 · 여유가 있던 업무는 여유를 다 쓸 때까지 그대로 · 선행 없는 업무는 그대로
 // 변경 목록(.json)을 내려받아 'python -m engenius_wbs apply 원본.xlsx 변경.json' (scripts\apply.bat) → 원본 형식 그대로 새 판 엑셀
 const ED=new Map(),DEPS0=new Map(),SCH0=SCH;let MOVED={},EDLOAD=0;
+// v0.5 서버 모드 (D.server): 날짜 = max(시작 하한, 선행 요구) — 파이썬 schedule.forward 와 같은 규칙 (저장 결과 = 미리 보기)
+const FL0=new Map(),WK=new Map(),RLX=new Map(),UID=new Map();
+if(D.server){D.tasks.forEach((r,i)=>{UID.set(r[0],D.uid[i]);if(D.fl[i]!=null)FL0.set(r[0],D.fl[i]);if(D.wk[i]!=null)WK.set(r[0],D.wk[i])});
+ for(const e of D.edges)if(e[6])RLX.set(`${e[0]}>${e[1]}>${e[3]||"FS"}>${e[4]||0}`,e[6])}
 for(const e of D.edges)(DEPS0.get(e[1])||DEPS0.set(e[1],[]).get(e[1])).push({p:e[0],label:e[2],ty:e[3]||"FS",lag:e[4]||0});
 const DEPRE=/^(\d+)\s*(FS|SS|FF|SF|완시|시시|완완|시완)?\s*(?:([+-])\s*([0-9]+(?:\.[0-9]+)?)\s*(%|[^\d\s%]*))?$/i,TYKO={"완시":"FS","시시":"SS","완완":"FF","시완":"SF"};
 function parseDeps(txt){const out=[],bad=[];for(let tok of String(txt||"").normalize("NFKC").split(/[,;]/)){tok=tok.trim();if(!tok)continue;const m=DEPRE.exec(tok);if(!m){bad.push(tok);continue}
@@ -595,6 +599,28 @@ function parseDeps(txt){const out=[],bad=[];for(let tok of String(txt||"").norma
   out.push({p:+m[1],label:(ty==="FS"?"":ty)+lt,ty,lag})}return{deps:out,bad}}
 const depsText=no=>(ED.get(no)?.preds??(DEPS0.get(no)||[]).map(d=>d.p+d.label).join(","));
 const ORIGE=new Set(D.edges.map(e=>`${e[0]}>${e[1]}>${e[3]||"FS"}>${e[4]||0}`));
+function forwardJS(val0,edges,dur,start){const leaf=no=>!T.get(no).kids.length,dOf=no=>dur.has(no)?dur.get(no):(WK.has(no)?WK.get(no):val0.get(2*no+1)-val0.get(2*no));
+ const FL=new Map(FL0);for(const [no,e] of ED){if(!leaf(no))continue;if(e.start){FL.set(no,start.get(no));continue}
+  if(e.preds!=null&&!FL.has(no)&&val0.has(2*no)){const now=new Set(parseDeps(e.preds).deps.map(d=>d.p));if((DEPS0.get(no)||[]).some(d=>!now.has(d.p)))FL.set(no,val0.get(2*no))}}   // 지워도 저절로 당겨지지 않게
+ const ins=new Map(),outs=new Map(),link=(src,a,dst,w,toF)=>{(ins.get(dst)||ins.set(dst,[]).get(dst)).push([src,a,w,toF]);(outs.get(src)||outs.set(src,[]).get(src)).push([dst])};
+ for(const e of edges){const [a,b]=ENDS[e.ty]||[1,0];if(!val0.has(2*e.p+a)||!val0.has(2*e.s+b))continue;const w=(e.lag||0)-(RLX.get(`${e.p}>${e.s}>${e.ty}>${e.lag||0}`)||0),src=leaf(e.p)?"L"+e.p:(a===0?"R":"F")+e.p;
+  if(leaf(e.s))link(src,a,"L"+e.s,w,b===1);else if(b===0)link(src,a,"C"+e.s,w,false)}
+ for(const t of T.values()){if(!t.kids.length||!val0.has(2*t.no))continue;for(const c of t.kids){if(!val0.has(2*c))continue;const lc=leaf(c);
+  link("C"+t.no,0,lc?"L"+c:"C"+c,0,false);link(lc?"L"+c:"R"+c,0,"R"+t.no,0,false);link(lc?"L"+c:"F"+c,1,"F"+t.no,0,false)}}
+ const units=new Set([...ins.keys(),...outs.keys()]);for(const no of LEAVES)if(val0.has(2*no))units.add("L"+no);
+ const ul=[...units],comp=sccIds(ul,outs),indeg=new Map(ul.map(u=>[u,0]));
+ for(const [u,l] of outs)for(const [v] of l)if(comp.get(u)!==comp.get(v))indeg.set(v,indeg.get(v)+1);
+ const order=ul.filter(u=>!indeg.get(u));for(let i=0;i<order.length;i++){const u=order[i];for(const [v] of (outs.get(u)||[]))if(comp.get(u)!==comp.get(v)){indeg.set(v,indeg.get(v)-1);if(!indeg.get(v))order.push(v)}}
+ const nv=new Map(),sv=(u,a)=>{if(u[0]==="L")return nv.get(u)+(a===1?dOf(+u.slice(1)):0);const v=nv.get(u);return v==null?null:v};
+ for(const u of order){const k=u[0],no=+u.slice(1),vals=[];for(const [src,a,w,toF] of (ins.get(u)||[])){if(comp.get(src)===comp.get(u))continue;const v=sv(src,a);if(v!=null)vals.push([v,w,toF])}
+  if(k==="R"||k==="F"){let m=null;for(const [v] of vals)if(m==null||(k==="R"?v<m:v>m))m=v;nv.set(u,m!=null?m:val0.get(2*no+(k==="F"?1:0)));continue}
+  let r=null;for(const [v,w,toF] of vals){const q=v+w-(toF?dOf(no):0);if(r==null||q>r)r=q}
+  if(k==="C"){nv.set(u,r);continue}
+  const fl=FL.has(no)?FL.get(no):null;nv.set(u,r==null?(fl==null?val0.get(2*no):fl):(fl==null?r:Math.max(r,fl)))}
+ const val=new Map();for(const no of LEAVES)if(nv.has("L"+no)){const s=nv.get("L"+no);val.set(2*no,s);val.set(2*no+1,s+dOf(no))}
+ for(const t of BYLV){let a=Infinity,b=-Infinity;for(const c of t.kids)if(val.has(2*c)){a=Math.min(a,val.get(2*c));b=Math.max(b,val.get(2*c+1))}
+  if(a<Infinity){val.set(2*t.no,a);val.set(2*t.no+1,b)}else if(val0.has(2*t.no)){val.set(2*t.no,val0.get(2*t.no));val.set(2*t.no+1,val0.get(2*t.no+1))}}
+ return val}
 function reschedule(val0,edges,dur,start){const leaf=no=>!T.get(no).kids.length,dOf=no=>dur.has(no)?dur.get(no):val0.get(2*no+1)-val0.get(2*no);
  const ins=new Map(),outs=new Map(),link=(src,a,dst,w,toF,gap)=>{(ins.get(dst)||ins.set(dst,[]).get(dst)).push([src,a,w,toF,gap]);(outs.get(src)||outs.set(src,[]).get(src)).push([dst])};
  for(const e of edges){const [a,b]=ENDS[e.ty]||[1,0];if(!val0.has(2*e.p+a)||!val0.has(2*e.s+b))continue;const gap=ORIGE.has(`${e.p}>${e.s}>${e.ty}>${e.lag}`)?val0.get(2*e.s+b)-val0.get(2*e.p+a)-e.lag:Infinity,src=leaf(e.p)?"L"+e.p:(a===0?"R":"F")+e.p;
@@ -627,9 +653,9 @@ function edRecompute(){
  for(const [p,d] of dv)if(!(ED.get(p)&&ED.get(p).man_hours!==undefined))T.get(p).mh=Math.round(((T.get(p).mh0||0)+d)*1e6)/1e6;
  for(const no of LEAVES)MH.set(no,T.get(no).mh||0);for(const t of BYLV){let m=0;for(const k of t.kids)m+=MH.get(k);MH.set(t.no,m)}
  // 날짜 다시 짜기 → 주경로
- const dur=new Map(),start=new Map();for(const [no,e] of ED){if(e.duration!=null)dur.set(no,e.duration);if(e.start)start.set(no,wnum(Date.parse(e.start)/864e5))}
+ const dur=new Map(),start=new Map();for(const [no,e] of ED){if(e.duration!=null)dur.set(no,e.duration);if(e.start)start.set(no,wnum(Date.parse(e.start)/864e5+(D.server&&T.get(no).ms?1:0)))}
  const timed=[...ED.values()].some(e=>e.preds!=null||e.duration!=null||e.start);
- const val=timed?reschedule(BASE.val,EDG,dur,start):BASE.val;SCH=timed?schedule(val,EDG,BASE.excl):SCH0;
+ const val=timed?(D.server?forwardJS(BASE.val,EDG,dur,start):reschedule(BASE.val,EDG,dur,start)):BASE.val;SCH=timed?schedule(val,EDG,BASE.excl):SCH0;
  MOVED={};for(const t of T.values()){t.st=t.st0;t.fi=t.fi0;const k=2*t.no;if(!val.has(k)||!BASE.val.has(k))continue;
   if(Math.abs(val.get(k)-BASE.val.get(k))<1e-9&&Math.abs(val.get(k+1)-BASE.val.get(k+1))<1e-9)continue;
   if(t.kids.length){const o=SPAN0.get(t.no);if(!o||o[0]!==t.st0||o[1]!==t.fi0)continue}   // C11: 엑셀 요약 날짜를 손으로 잡은 것 — 그대로
@@ -644,7 +670,7 @@ function edChanges(){const out=[];for(const [no,e] of ED){const t=T.get(no),b={n
   if(e.name!=null)out.push({...b,field:"name",from:t.name0,to:e.name});
   if(e.man_hours!==undefined)out.push({...b,field:"man_hours",from:t.mh0,to:e.man_hours});
   if(e.staff!==undefined)out.push({...b,field:"staff",from:t.staff0,to:e.staff})}return out}
-const EDKEY="wbs-edits:"+(D.sha256||D.source);
+const EDKEY="wbs-edits:"+(D.server?"server:"+D.source:(D.sha256||D.source));
 function edSave(){try{if(ED.size)localStorage.setItem(EDKEY,JSON.stringify([...ED]));else localStorage.removeItem(EDKEY)}catch(e){}}
 function edChip(){const c=$("edChip");if(!ED.size){c.style.display="none";return}const d=Math.round(SCH.end-SCH0.end);
  c.style.display="";c.textContent=`✎ 가정 편집 ${ED.size}업무 · 완료 ${fDate(SCH.end)} (${d>0?"+":""}${d} 평일)`+(EDLOAD?" · 지난번 것 불러옴":"")}
@@ -655,7 +681,7 @@ function edForm(no){const t=T.get(no),e=ED.get(no)||{},leaf=!t.kids.length,d0=BA
   <tr><td>시작</td><td><input type="date" id="edSt" value="${e.start||""}"> 이후 <span class="mut">비우면 선행을 따름</span></td></tr>`;
  h+=`<tr><td>선행</td><td><input type="text" id="edPre" value="${esc(depsText(no))}" title="MS Project 표기 — 12,15SS+5일,20FF"></td></tr><tr><td>이름</td><td><input type="text" id="edNm" value="${esc(e.name??t.name0)}"></td></tr>`;
  if(leaf)h+=`<tr><td>Man Hours</td><td><input type="number" id="edMh" min="0" value="${e.man_hours!==undefined?(e.man_hours??""):(t.mh0??"")}"></td></tr>`;
- h+=`</table><button class="eb pri" id="edApply">적용 → 다시 계산</button>${ED.has(no)?'<button class="eb" id="edUndo">이 업무 되돌리기</button>':""}<div id="edMsg" class="mut" style="font-size:12px">날짜는 '간격 유지' 규칙으로 다시 짬 — ④ 주경로 탭에서 변경 목록 내려받기</div>`;return h}
+ h+=`</table><button class="eb pri" id="edApply">적용 → 다시 계산</button>${ED.has(no)?'<button class="eb" id="edUndo">이 업무 되돌리기</button>':""}<div id="edMsg" class="mut" style="font-size:12px">${D.server?(SRV.can(no)?"적용하면 미리 보기 — ④ 주경로 탭에서 '서버에 저장'":"내 모듈이 아니라 미리 보기만 (저장 불가 — 수정 요청은 다음 단계)"):"날짜는 '간격 유지' 규칙으로 다시 짬 — ④ 주경로 탭에서 변경 목록 내려받기"}</div>`;return h}
 function bindEdForm(no){const ap=$("edApply");if(!ap)return;const t=T.get(no),leaf=!t.kids.length;
  ap.onclick=()=>{const e={},msg=$("edMsg"),err=m=>{msg.innerHTML=`<span class="err">${esc(m)}</span>`};
   if(leaf){const dv=$("edDur").value.trim(),d0=Math.round((BASE.val.get(2*no+1)-BASE.val.get(2*no))*1000)/1000;if(dv!==""){const d=+dv;if(!(d>=0))return err("기간은 0 이상 숫자");if(BASE.val.has(2*no)&&Math.abs(d-d0)>1e-9)e.duration=d;else if(!BASE.val.has(2*no))return err("날짜가 없는 업무는 기간을 다시 짤 수 없음")}
@@ -666,19 +692,42 @@ function bindEdForm(no){const ap=$("edApply");if(!ap)return;const t=T.get(no),le
   const nm=$("edNm").value.trim();if(nm&&nm!==t.name0)e.name=nm;
   EDLOAD=0;if(Object.keys(e).length)ED.set(no,e);else ED.delete(no);edRecompute();keepView=true;draw()};
  const un=$("edUndo");if(un)un.onclick=()=>{EDLOAD=0;ED.delete(no);edRecompute();keepView=true;draw()}}
-function edBox(){if(!ED.size)return `<div class="mut" style="font-size:12px;margin-bottom:8px">✎ 가정 편집 — 간트에서 하위 업무를 고르고 오른쪽 패널에서 기간·시작·선행을 바꾸면 날짜와 주경로를 바로 다시 계산합니다.</div>`;
+function edBox(){if(!ED.size)return `<div class="mut" style="font-size:12px;margin-bottom:8px">✎ 가정 편집 — 간트에서 하위 업무를 고르고 오른쪽 패널에서 기간·시작·선행을 바꾸면 날짜와 주경로를 바로 다시 계산합니다.</div>`+(D.server?SRV.histBox():"");
  const d=Math.round(SCH.end-SCH0.end),ch=edChanges(),lab={duration:"기간",start:"시작",preds:"선행",name:"이름",man_hours:"MH",staff:"투입인력"};
  let h=`<div class="edbox"><b>✎ 가정 편집 ${ED.size}업무</b><div style="font-size:12px">사업 완료 ${fDate(SCH0.end)} → <b>${fDate(SCH.end)}</b> (${d>0?"+":""}${d} 평일) · 날짜 바뀐 업무 ${Object.keys(MOVED).length.toLocaleString()}</div>`;
  for(const [no] of ED){const xs=ch.filter(c=>c.no===no).map(c=>`${lab[c.field]} ${c.from??"-"}→${c.to??"-"}`).join(" · ");h+=`<div class="it"><span class="lnk" data-n="${no}">${no}</span><span>${esc(T.get(no).name)}: ${esc(xs)}</span><span class="x" data-x="${no}" title="되돌리기">✕</span></div>`}
- return h+`<button class="pri" id="edDown" title="apply.bat 에 원본 엑셀과 함께 끌어다 놓으면 원본 형식 그대로 새 판 엑셀">변경 목록 내려받기 (.json)</button><button id="edClear">모두 되돌리기</button></div>`}
+ return h+(D.server?SRV.saveBox():"")+`<button class="pri" id="edDown" title="apply.bat 에 원본 엑셀과 함께 끌어다 놓으면 원본 형식 그대로 새 판 엑셀">변경 목록 내려받기 (.json)</button><button id="edClear">모두 되돌리기</button></div>`+(D.server?SRV.histBox():"")}
 function bindEdBox(){const el=$("cpGrp");el.querySelectorAll(".edbox .x").forEach(x=>x.onclick=()=>{EDLOAD=0;ED.delete(+x.dataset.x);edRecompute();renderCP()});
  el.querySelectorAll(".edbox .lnk").forEach(x=>x.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+x.dataset.n)});
- const dn=$("edDown");if(dn)dn.onclick=edDownload;const cl=$("edClear");if(cl)cl.onclick=()=>{if(!confirm("가정 편집을 모두 되돌릴까요?"))return;EDLOAD=0;ED.clear();edRecompute();renderCP()}}
+ if(D.server)SRV.bind();const dn=$("edDown");if(dn)dn.onclick=edDownload;const cl=$("edClear");if(cl)cl.onclick=()=>{if(!confirm("가정 편집을 모두 되돌릴까요?"))return;EDLOAD=0;ED.clear();edRecompute();renderCP()}}
 function edDownload(){const now=new Date(),p=n=>String(n).padStart(2,"0"),stamp=`${now.getFullYear()}${p(now.getMonth()+1)}${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}`;
  const body={format:"engenius-wbs-changes/1",source:D.source,sheet:D.sheet,sha256:D.sha256,created:now.toISOString().slice(0,19),rule:"간격 유지 v1",
   changes:edChanges(),result:{end_before:fDate(SCH0.end),end:fDate(SCH.end),moved:MOVED}};
  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(body,null,1)],{type:"application/json"}));a.download=`${D.source.replace(/\.xlsx$/i,"")}_변경_${stamp}.json`;
  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+// ---- v0.5 서버: 저장 · 권한 · 이력 ----
+const SRV={role:window.__WBS_ROLE__||{kind:"viewer",module_uid:null},hist:null,
+ lv1(no){let t=T.get(no);while(t.par!=null&&T.has(t.par))t=T.get(t.par);return t.no},
+ can(no){const r=this.role;if(r.kind==="admin")return true;if(r.kind!=="leader")return false;const t=T.get(no);return t.lv!==1&&UID.get(this.lv1(no))===r.module_uid},
+ edits(){const out=[];for(const [no,e] of ED){const x={uid:UID.get(no)};for(const k of ["duration","start","preds","name","man_hours"])if(e[k]!==undefined&&!(k==="start"&&!e.start))x[k]=e[k];out.push(x)}return out},
+ saveBox(){if(this.role.kind==="viewer")return `<div class="mut" style="font-size:12px;margin:6px 0">조회자는 저장할 수 없습니다 (가정 편집은 이 브라우저에서만).</div>`;
+  const no=[...ED.keys()].filter(n=>!this.can(n));
+  return `<div style="margin:6px 0"><button class="pri" id="srvSave"${no.length?" disabled":""}>서버에 저장 (${ED.size}업무)</button> <span id="srvMsg" class="mut" style="font-size:12px">${no.length?`<span class="err">내 모듈이 아닌 업무 ${no.length}개 (${no.slice(0,5).join(", ")}${no.length>5?" …":""}) — 되돌린 뒤 저장</span>`:"저장하면 모든 사람 화면에 반영 · 이력에 역할 이름으로 남음"}</span></div>`},
+ histBox(){return `<div class="edbox" id="srvHist"><b>최근 저장</b> <span class="mut" style="font-size:12px">불러오는 중…</span></div>`},
+ async save(){const b=$("srvSave"),m=$("srvMsg");b.disabled=true;m.textContent="저장 중…";
+  try{const r=await fetch("api/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({base_rev:D.server.rev,edits:this.edits()})});
+   const j=await r.json().catch(()=>({error:"서버 응답을 읽지 못함"}));
+   if(r.ok){ED.clear();edSave();m.textContent=`저장됨 (판 #${j.rev}) · 날짜 바뀐 업무 ${j.moved} · 사업 완료 ${j.end_before} → ${j.end_after} — 새로 불러옴`;setTimeout(()=>location.reload(),700);return}
+   const items=(j.items||[]).slice(0,8).map(i=>`${i.no} ${esc(i.name||"")}${i.role?` (${esc(i.role)} ${esc(i.at||"")})`:""}${i.error?`: ${esc(i.error)}`:""}`).join("<br>");
+   m.innerHTML=`<span class="err">${esc(j.error||("저장 실패 "+r.status))}</span>`+(items?`<div style="font-size:12px">${items}</div>`:"")+(r.status===409?`<div style="font-size:12px">새로 고침하면 바뀐 판 위에 내 가정 편집이 남아 있습니다 — 확인 뒤 다시 저장</div>`:"");b.disabled=false}
+  catch(e){m.innerHTML=`<span class="err">서버에 닿지 못함</span>`;b.disabled=false}},
+ async loadHist(){const el=$("srvHist");if(!el)return;try{if(!this.hist){const r=await fetch("api/history?limit=30",{cache:"no-store"});this.hist=r.ok?await r.json():[]}}catch(e){this.hist=[]}
+  const h=this.hist;let s=`<b>최근 저장</b>`;if(!h.length)s+=` <span class="mut" style="font-size:12px">아직 없음</span>`;
+  for(const x of h){const n=x.note||{};s+=`<div class="it" style="display:block"><span class="mut">#${x.txn} ${esc(x.at.replace("T"," "))} · ${esc(x.role)}</span>`+(n.moved!=null?` <span class="mut">· 날짜 바뀐 업무 ${n.moved} · 완료 ${esc(n.end_before||"")} → ${esc(n.end_after||"")}</span>`:"");
+   for(const c of x.changes.slice(0,12))s+=`<div style="font-size:12px;padding-left:10px">${c.no!=null?`<span class="lnk" data-n="${c.no}">${c.no}</span> `:""}${esc(c.name)} · ${esc(c.label)} ${esc(c.old??"-")} → ${esc(c.new??"-")}</div>`;
+   if(x.changes.length>12)s+=`<div class="mut" style="font-size:12px;padding-left:10px">… 외 ${x.changes.length-12}칸</div>`;s+=`</div>`}
+  el.innerHTML=s;el.querySelectorAll(".lnk").forEach(a=>a.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+a.dataset.n)})},
+ bind(){const b=$("srvSave");if(b)b.onclick=()=>this.save();this.loadHist()}};
 // 지난번 편집 불러오기 (이 원본 판에서 만든 것만)
 try{const sv=JSON.parse(localStorage.getItem(EDKEY)||"null");if(Array.isArray(sv)&&sv.length){for(const [no,e] of sv)if(T.has(no))ED.set(no,e);EDLOAD=ED.size;if(ED.size)edRecompute()}}catch(e){}
 // ---- ④ 주경로 — 날짜 기준 총 여유. 무엇이 사업 완료를 쥐고 있나 (파이썬 schedule.py 와 같은 계산) ----

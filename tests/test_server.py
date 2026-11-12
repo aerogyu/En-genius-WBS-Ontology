@@ -14,7 +14,7 @@ from starlette.testclient import TestClient
 from engenius_wbs import auth, winauth
 from engenius_wbs.__main__ import main
 from engenius_wbs.analyze import analyze
-from engenius_wbs.server import COOKIE, FAIL_LIMIT, create_app
+from engenius_wbs.server import CODE_TAG, COOKIE, FAIL_LIMIT, create_app
 from engenius_wbs.store import Store
 from engenius_wbs.viz import payload
 from test_wbs import CFG, make_small
@@ -61,7 +61,7 @@ def test_view_same_data_as_build(app_db):
     assert "httponly" in ck and "samesite=strict" in ck
     page = c.get("/").text
     assert "const D=window.__WBS_DATA__;" in page and "__DATA__" not in page.replace("__WBS_DATA__", "")
-    assert '<script src="data.js?r=1"></script>' in page and "조회 (조회자) · 판 #1" in page
+    assert f'<script src="data.js?r=1&amp;v={CODE_TAG}"></script>' in page and "조회 (조회자) · 판 #1" in page
     assert "저장된 판 엑셀 내려받기" in page and "ED.size" in page
     js = c.get("/data.js")
     assert js.headers["content-type"].startswith("text/javascript") and js.headers["cache-control"] == "private, no-cache"
@@ -71,6 +71,8 @@ def test_view_same_data_as_build(app_db):
     want = json.loads(json.dumps(payload(w, analyze(w, CFG), CFG)))
     want["sha256"] = ""
     d.pop("server")
+    assert len(d.pop("uid")) == len(d.pop("fl")) == len(d.pop("wk")) == len(d["tasks"])
+    d["edges"] = [e[:6] for e in d["edges"]]                  # 7번째 = 선행 느슨함 (서버 미리 보기용)
     assert d == want                                       # 화면 데이터 = 기존 build 의 보기 데이터 (DB 에서 만든 것)
     assert c.get("/data.js", headers={"if-none-match": js.headers["etag"]}).status_code == 304
     # 두 번째 브라우저도 같은 판

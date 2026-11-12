@@ -4,10 +4,11 @@
 
 화면은 지금 보기 HTML(template_v3)을 그대로 쓰고 데이터만 서버에서 받는다 (data.js — DB 판이 바뀔 때만 다시 계산).
 로그인은 역할 계정 (auth.py, `role add` 로 만든다). 모든 역할이 보기·내려받기, 관리자만 역할 목록.
-가정 편집은 지금처럼 그 브라우저 안에서만 (저장은 S3). 쓰는 패키지: starlette·uvicorn (사내 1.3.1·0.51.0).
+가정 편집 → '서버에 저장' (S3, edit.py — 권한·겹침 거절·이력). 쓰는 패키지: starlette·uvicorn (사내 1.3.1·0.51.0).
 """
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import sqlite3
@@ -27,6 +28,7 @@ from starlette.routing import Route
 from . import auth, winauth
 from .analyze import analyze
 from .config import load_config
+from .edit import EditError, apply_edits, history
 from .store import Store
 from .viz import TEMPLATE, payload
 
@@ -35,6 +37,11 @@ FAIL_LIMIT, FAIL_WINDOW = 5, 600          # 같은 주소에서 10분에 5번 �
 HEADERS = {"X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer",
            "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
                                       "img-src 'self' data: blob:; frame-ancestors 'none'; form-action 'self'"}
+
+
+# 프로그램 판 — 코드를 갈아 끼우면 DB 판이 같아도 브라우저가 옛 data.js 를 쓰지 않게 (캐시 열쇠에 섞는다)
+CODE_TAG = hashlib.sha256(b"".join(p.read_bytes() for p in sorted(Path(__file__).parent.glob("*.py")))
+                          + TEMPLATE.encode("utf-8")).hexdigest()[:10]
 
 
 def _rev(db: sqlite3.Connection) -> int:
@@ -49,6 +56,7 @@ class WbsServer:
         self.cfg = load_config(cfg_path)
         self.title = title
         self._lock = threading.Lock()
+        self.write_lock = threading.Lock()          # 저장은 한 번에 하나씩
         self._cache: tuple[int, bytes, dict] | None = None
         wl = self.cfg.get("windows_login") or {}
         self.win = bool(wl.get("enabled", True)) and winauth.available()
@@ -73,9 +81,17 @@ class WbsServer:
                 if self._cache and self._cache[0] == rev:
                     return self._cache
                 t0 = time.perf_counter()
-                w = st.load(self.cfg)
+                m = st.model(self.cfg)
+                w = m.wbs
                 a = analyze(w, self.cfg)
                 p = payload(w, a, self.cfg)
+                order = sorted(w.tasks.values(), key=lambda t: t.excel_row)
+                p["uid"] = [w.uids[t.no] for t in order]
+                p["fl"] = [m.floor.get(t.no) for t in order]
+                p["wk"] = [m.work.get(t.no) for t in order]
+                rl = {(e.pred, e.succ, e.type, e.lag_days or 0): x for e, x in zip(m.edges, m.relax) if x}
+                for e in p["edges"]:
+                    e.append(rl.get((e[0], e[1], e[3] or "FS", e[4] or 0), 0))
             p["sha256"] = ""                     # 원본 엑셀과 맞춰 보는 값 — 서버에서는 쓰지 않는다
             p["server"] = {"rev": rev, "seconds": round(time.perf_counter() - t0, 2)}
             js = ("window.__WBS_DATA__=" + json.dumps(p, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/") + ";").encode("utf-8")
@@ -149,15 +165,16 @@ def view_page(srv: WbsServer, role: auth.Role, rev: int) -> str:
     bar = ('<span class="mut" id="meta"></span><span style="flex:1"></span>'
            '<span class="mut" id="srvNew" style="display:none;color:var(--hot)">새 판이 있음 — <a href="./">새로 고침</a></span>'
            f'<span class="mut" id="srvWho" title="역할 · DB 판 번호">{html.escape(who)} ({role.kind_ko}) · 판 #{rev}</span>'
-           '<a class="mut" id="srvExport" href="export.xlsx" title="서버에 저장된 판을 원본 양식 엑셀로 (인명 칸은 비어 있음). 이 브라우저의 가정 편집은 들어가지 않는다 — 저장은 다음 단계(S3)">저장된 판 엑셀 내려받기</a>'
+           '<a class="mut" id="srvExport" href="export.xlsx" title="서버에 저장된 판을 원본 양식 엑셀로 (인명 칸은 비어 있음). 이 브라우저의 가정 편집은 ④ 주경로 탭에서 ‘서버에 저장’ 한 뒤에 들어간다">저장된 판 엑셀 내려받기</a>'
            '<form method="post" action="logout" style="display:inline;margin:0"><button style="font:inherit;font-size:12px">로그아웃</button></form></header>')
     poll = ("\n<script>(function(){const R=" + str(rev) + ";setInterval(()=>fetch('api/status',{cache:'no-store'})"
             ".then(r=>r.ok?r.json():null).then(s=>{if(s&&s.rev!==R)document.getElementById('srvNew').style.display=''})"
             ".catch(()=>{}),30000)})();</script>\n")
-    style = "<style>#edDown{display:none}</style>\n"   # 변경 목록 → apply.bat 흐름은 서버에서는 쓰지 않는다 (저장은 S3)
+    style = ("<style>#edDown{display:none}</style>\n<script>window.__WBS_ROLE__=" +   # 화면은 이것으로 단추만 숨긴다 — 권한은 서버가 저장 때 검사
+             json.dumps({"kind": role.kind, "module_uid": role.module_uid, "label": role.label}, ensure_ascii=False).replace("</", "<\\/") + ";</script>\n")   # 변경 목록 → apply.bat 흐름은 서버에서는 쓰지 않는다 (저장은 S3)
     poll += ("<script>document.addEventListener('click',e=>{if(e.target.id!=='srvExport')return;let n=0;try{n=ED.size}catch(_){}"
-             "if(n&&!confirm('가정 편집 '+n+'건은 아직 서버에 저장되지 않아 이 엑셀에 들어가지 않습니다 (저장 기능은 다음 단계).\\n저장된 판 그대로 내려받을까요?'))e.preventDefault()});</script>\n")
-    return page.replace(old_h, bar).replace(old_d, f'<script src="data.js?r={rev}"></script>{poll}{style}<script>\nconst D=window.__WBS_DATA__;')
+             "if(n&&!confirm('가정 편집 '+n+'건은 아직 서버에 저장되지 않아 이 엑셀에 들어가지 않습니다 (④ 주경로 탭의 ‘서버에 저장’ 뒤에 들어감).\\n저장된 판 그대로 내려받을까요?'))e.preventDefault()});</script>\n")
+    return page.replace(old_h, bar).replace(old_d, f'<script src="data.js?r={rev}&amp;v={CODE_TAG}"></script>{poll}{style}<script>\nconst D=window.__WBS_DATA__;')
 
 
 def create_app(db_path: str | Path, cfg_path: str | Path | None = None, title: str = "WBS") -> Starlette:
@@ -184,7 +201,7 @@ def create_app(db_path: str | Path, cfg_path: str | Path | None = None, title: s
         if err:
             return err
         rev, js, _ = await run_in_threadpool(srv.data)
-        etag = f'"r{rev}"'
+        etag = f'"r{rev}-{CODE_TAG}"'
         if request.headers.get("if-none-match") == etag:
             return _h(Response(status_code=304, headers={"ETag": etag}), "private, no-cache")
         return _h(Response(js, media_type="text/javascript; charset=utf-8", headers={"ETag": etag}), "private, no-cache")
@@ -281,10 +298,47 @@ def create_app(db_path: str | Path, cfg_path: str | Path | None = None, title: s
         return _h(Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                            headers={"Content-Disposition": cd}))
 
+    async def save(request: Request):
+        role, err = await need(request)
+        if err:
+            return err
+        if not request.headers.get("content-type", "").startswith("application/json"):
+            return _h(JSONResponse({"error": "JSON 으로 보낼 것"}, status_code=415))
+        try:
+            body = json.loads((await request.body())[:2_000_000] or b"{}")
+            base, edits = int(body.get("base_rev", -1)), body.get("edits")
+        except (ValueError, TypeError, AttributeError):
+            return _h(JSONResponse({"error": "요청을 읽지 못함"}, status_code=400))
+
+        def run():
+            with srv.write_lock, srv.connect() as st:
+                return apply_edits(st, srv.cfg, role, base, edits)
+        try:
+            res = await run_in_threadpool(run)
+        except EditError as e:
+            code = {"denied": 403, "conflict": 409}.get(e.kind, 400)
+            return _h(JSONResponse({"error": str(e), "kind": e.kind, "items": e.items}, status_code=code))
+        return _h(JSONResponse(res))
+
+    async def hist(request: Request):
+        _, err = await need(request)
+        if err:
+            return err
+        try:
+            uid = int(request.query_params["uid"]) if request.query_params.get("uid") else None
+            limit = max(1, min(int(request.query_params.get("limit", 50)), 500))
+        except ValueError:
+            return _h(JSONResponse({"error": "uid·limit 는 숫자"}, status_code=400))
+
+        def get():
+            with srv.connect() as st:
+                return history(st, srv.cfg, uid, limit)
+        return _h(JSONResponse(await run_in_threadpool(get)))
+
     app = Starlette(routes=[
         Route("/", index), Route("/data.js", data_js), Route("/login", login, methods=["GET", "POST"]),
         Route("/logout", logout, methods=["POST"]), Route("/api/status", status), Route("/api/roles", roles),
-        Route("/export.xlsx", export),
+        Route("/export.xlsx", export), Route("/api/save", save, methods=["POST"]), Route("/api/history", hist),
     ])
     app.state.wbs = srv
     return app

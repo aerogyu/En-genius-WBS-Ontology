@@ -40,7 +40,7 @@ python -m pytest                                                     # scripts\s
 1. GitHub `aerogyu/En-genius-WBS-Ontology` → **Code → Download ZIP** (`En-genius-WBS-Ontology-main.zip`, 약 1 MB — 합성 WBS 엑셀 포함) → 반입.
 2. 풀어서 **Tool 온톨로지와 같은 부모 폴더**에 둔다 — 예: `C:\EnGenius\engenius-wbs-ontology` (옆에 `C:\EnGenius\engenius-tool-ontology` 가 있어야 한다).
    다른 곳이면 `scripts\env.bat` 의 `TOOL_ONTO_DIR` 를 Tool 온톨로지 폴더로 고친다. 따로 설치할 것 없음 (그쪽 `.venv` 를 쓴다).
-3. `scripts\selftest.bat` 더블클릭 → `46 passed` · `rc=0`.
+3. `scripts\selftest.bat` 더블클릭 → `53 passed` · `rc=0`.
 4. WBS 엑셀(.xlsx — 첫 시트를 읽는다)을 `scripts\build.bat` 위에 끌어다 놓기 → 출력 폴더의 `wbs_view.html`(브라우저)·`report.xlsx`.
    WBS 가 첫 시트가 아니면: `scripts\env.bat` 실행 뒤 `"%PY%" -m engenius_wbs build <파일> --sheet <시트 이름>`.
 5. `P01 헤더를 찾지 못함` 이면 헤더 문구가 별칭에 없다 → `config\wbs.yaml` 을 `data\real\config\wbs.yaml` 로 복사해 `columns` 에 그 문구를 더한다.
