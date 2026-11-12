@@ -10,6 +10,11 @@
         → 도구 DB (SQLite 파일 하나, v0.5 S1). 업무마다 고유 ID. 원본과 달라지는 칸은 <db>.import_notes.json 에
     export [--db data/real/wbs.db] [--out 파일.xlsx] [--config wbs.yaml]
         → DB 를 원본 양식 엑셀로 (기본 output/<시각>/)
+    role add <로그인ID> --label 역할이름 --kind admin|leader|viewer [--module Lv1 이름·WBS 코드] [--db]   (비밀번호는 물어봄)
+    role list | role passwd <로그인ID> | role off <로그인ID> | role on <로그인ID>
+        → 역할 계정 (v0.5 S2). 역할 이름만 이력에 남는다 — 사람 이름을 쓰지 않는다
+    serve [--db data/real/wbs.db] [--host 127.0.0.1] [--port 8100] [--title 이름]
+        → 읽기 서버 (v0.5 S2) — 브라우저로 http://<서버>:<포트>/ (starlette·uvicorn 필요)
 """
 from __future__ import annotations
 
@@ -192,6 +197,100 @@ def cmd_export(a) -> int:
     return 0
 
 
+def _module_uid(st, cfg, key: str) -> int:
+    m = st.model(cfg)
+    hits = [m.rows[t.no]["uid"] for t in m.wbs.tasks.values() if t.level == 1 and key.strip() in (t.wbs, t.name.strip())]
+    if len(hits) != 1:
+        names = " · ".join(f"{t.wbs} {t.name.strip()}" for t in m.wbs.tasks.values() if t.level == 1)
+        raise ValueError(f"Lv1 '{key}' 를 {'찾지 못함' if not hits else '하나로 못 정함'} — 있는 것: {names}")
+    return hits[0]
+
+
+def _ask_password() -> str:
+    import getpass
+    p1 = getpass.getpass("비밀번호 (화면에 안 보임): ")
+    p2 = getpass.getpass("한 번 더: ")
+    if p1 != p2:
+        raise ValueError("두 번 적은 비밀번호가 다르다")
+    return p1
+
+
+def cmd_role(a) -> int:
+    from . import auth
+    from .store import Store
+
+    db = Path(a.db)
+    if not db.exists():
+        print(f"[NG] DB 가 없다: {db}  (먼저 import)")
+        return 2
+    try:
+        with Store(db) as st:
+            auth.ensure(st.db)
+            if a.action == "list":
+                rows = auth.list_roles(st.db, include_off=True)
+                if not rows:
+                    print("[role] 역할이 없다 — 예: role add admin1 --label \"관리자 1\" --kind admin")
+                for r in rows:
+                    mod = ""
+                    if r["module_uid"]:
+                        x = st.db.execute("SELECT name FROM task WHERE uid = ?", (r["module_uid"],)).fetchone()
+                        mod = f" · 모듈 {x['name'].strip() if x else '(없음)'}"
+                    print(f"  {r['login']:<16} {r['label']} ({auth.KINDS[r['kind']]}){mod}{'' if r['active'] else ' · 꺼짐'}")
+                return 0
+            if not a.login:
+                print("[NG] 로그인 ID 를 주세요")
+                return 2
+            if a.action == "add":
+                if not a.label or not a.kind:
+                    print("[NG] --label 과 --kind 가 필요하다")
+                    return 2
+                mod = _module_uid(st, load_config(a.config), a.module) if a.kind == "leader" and a.module else None
+                auth.check_new(a.login, a.label, a.kind, "x" * auth.MIN_PASSWORD)
+                r = auth.add_role(st.db, a.login, a.label, a.kind, _ask_password(), mod)
+                print(f"[role] 만듦: {r.login} — {r.label} ({r.kind_ko})")
+            elif a.action == "passwd":
+                auth.set_password(st.db, a.login, _ask_password())
+                print(f"[role] 비밀번호 바꿈: {a.login} (그 역할의 로그인은 끊김)")
+            else:
+                auth.set_active(st.db, a.login, a.action == "on")
+                print(f"[role] {a.login} {'켬' if a.action == 'on' else '끔 (로그인 끊김)'}")
+    except ValueError as e:
+        print(f"[NG] {e}")
+        return 2
+    return 0
+
+
+def cmd_serve(a) -> int:
+    try:
+        import uvicorn
+        from .server import create_app
+    except ImportError as e:
+        print(f"[NG] 서버 패키지가 없다 ({e.name}) — Tool 온톨로지 .venv 에 starlette·uvicorn 이 있어야 한다")
+        return 2
+    from . import auth
+    from .store import Store
+
+    db = Path(a.db)
+    try:
+        if db.exists():
+            with Store(db) as st:
+                auth.ensure(st.db)
+                if not any(r["kind"] == "admin" and r["active"] for r in auth.list_roles(st.db)):
+                    print("[NG] 관리자 역할이 없다 — 먼저: role add admin1 --label \"관리자 1\" --kind admin")
+                    return 2
+        t0 = time.perf_counter()
+        app = create_app(db, a.config, a.title or "WBS")
+        _, _, info = app.state.wbs.data()          # 첫 화면이 기다리지 않게 미리 계산
+    except ValueError as e:
+        print(f"[NG] {e}")
+        return 2
+    print(f"[serve] {db.name} · 업무 {info['tasks']:,} · 선행 {info['edges']:,} · 판 #{info['rev']} ({time.perf_counter() - t0:.1f}초)")
+    shown = "<이 PC 의 IP>" if a.host in ("0.0.0.0", "::") else a.host
+    print(f"  · 브라우저: http://{shown}:{a.port}/   (끄려면 이 창에서 Ctrl+C)")
+    uvicorn.run(app, host=a.host, port=a.port, log_level="warning")
+    return 0
+
+
 def cmd_synth(a) -> int:
     from .synth import generate
     out = Path(a.out)
@@ -234,8 +333,23 @@ def main(argv=None) -> int:
     e.add_argument("--db", default=default_db)
     e.add_argument("--out")
     e.add_argument("--config")
+    r = sub.add_parser("role", help="역할 계정 만들기·보기·비밀번호 (v0.5 S2)")
+    r.add_argument("action", choices=["add", "list", "passwd", "off", "on"])
+    r.add_argument("login", nargs="?")
+    r.add_argument("--label", help="역할 이름 (예: 관리자 1, FAN 리더) — 사람 이름 금지")
+    r.add_argument("--kind", choices=["admin", "leader", "viewer"])
+    r.add_argument("--module", help="모듈 리더의 Lv1 — 이름 또는 WBS 코드")
+    r.add_argument("--db", default=default_db)
+    r.add_argument("--config")
+    s = sub.add_parser("serve", help="읽기 서버 (v0.5 S2)")
+    s.add_argument("--db", default=default_db)
+    s.add_argument("--host", default="127.0.0.1", help="다른 PC 에서 들어오게 하려면 0.0.0.0")
+    s.add_argument("--port", type=int, default=8100)
+    s.add_argument("--title")
+    s.add_argument("--config")
     a = ap.parse_args(argv)
-    return {"build": cmd_build, "synth": cmd_synth, "apply": cmd_apply, "import": cmd_import, "export": cmd_export}[a.cmd](a)
+    return {"build": cmd_build, "synth": cmd_synth, "apply": cmd_apply, "import": cmd_import, "export": cmd_export,
+            "role": cmd_role, "serve": cmd_serve}[a.cmd](a)
 
 
 if __name__ == "__main__":

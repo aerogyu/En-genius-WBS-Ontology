@@ -73,7 +73,10 @@ MS Project 로 만든 사업 WBS 엑셀(약 12,800행, Lv1~Lv6)의 **선행 작�
   사내 `pip show starlette uvicorn` not found (`.venv` 안에서 다시 확인 — **S2 착수 전 결정**: 사내 whl 설치 / 표준 라이브러리 http.server).
 - [x] **v0.5 S1 저장소 (2026-11-12)**: `store.py`(SQLite 1 파일 — task·dep·txn·change·note·meta, uid 영구) · `python -m engenius_wbs import|export` · `scripts\import.bat`·`export.bat` ·
   `schedule.forward`(날짜 = max(시작 하한, 선행 요구)) · `config keep_columns`. 합성 12,827행 왕복: 날짜 이동 0 · 달라진 칸 = 인명 칸 + 들여오기 기록 10칸(심어 둔 문제 자리) ·
-  검사·주경로·여유·월별 공수 같음 · 들여오기 8초·내보내기 3초·DB 2.4 MB. pytest 33. **실제 WBS 로는 아직 안 돌림** (사내 import → export 로 '이동 0' 확인 필요). 다음 = S2 (Leo 확인: starlette·uvicorn).
+  검사·주경로·여유·월별 공수 같음 · 들여오기 8초·내보내기 3초·DB 2.4 MB. pytest 33. **실제 WBS 로는 아직 안 돌림** (사내 import → export 로 '이동 0' 확인 필요).
+- [x] **v0.5 S2 읽기 서버 (2026-11-12, docs/05 11장)**: 사내 starlette 1.3.1·uvicorn 0.51.0 (Leo 확인) — 그 판으로 만든 venv 에서도 테스트 통과. `server.py`(보기 HTML 그대로 + `data.js`, 판이 바뀔 때만 재계산) ·
+  `auth.py`(역할 계정 PBKDF2, 토큰 해시만 DB, 12시간, 10분 5회 실패 차단) · `role`·`serve` 명령 · `scripts\serve.bat`(0.0.0.0:8100)·`role.bat`. 권한: 모두 보기·엑셀 내려받기, 관리자만 역할 목록.
+  브라우저(127.0.0.1)로 합성 12,827행 로그인·4개 탭 확인. pytest 40. **다른 PC 접속·사내 방화벽 미확인.** 다음 = S3 칸 고치기 (설계 docs/05 5장).
   상시 PC 서버 + 사내망 브라우저 가능. 제안 = 서버 한 곳 정본(SQLite·고유 ID)·리더가 직접 편집·판 확정·엑셀 왕복 유지, 기능은 단계별. **Leo 확인 A~E 대기** → 아키텍처 설계(Fable 권장).
 - [x] 합성 WBS `data/synthetic/wbs_synthetic.xlsx`(기본값 12,827행·seed 7, 일반 명칭만) 저장소에 올림 (Leo 2026-11-04) — synth 를 바꾸면 다시 만들어 커밋.
 - [ ] Leo 확인 — 사내 실제 WBS 로 돌려 보기 v2 보기(헤더 이름이 별칭에 있는지, 문제 코드별 건수), 보기 HTML 이 쓸 만한지

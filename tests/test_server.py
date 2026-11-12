@@ -1,0 +1,157 @@
+"""읽기 서버 (v0.5 S2) — 역할 계정 로그인 · 화면 = 지금 보기 + 서버 데이터 · 조회자 권한."""
+from __future__ import annotations
+
+import json
+from io import BytesIO
+
+import pytest
+
+pytest.importorskip("starlette")
+pytest.importorskip("httpx")
+from openpyxl import load_workbook
+from starlette.testclient import TestClient
+
+from engenius_wbs import auth
+from engenius_wbs.__main__ import main
+from engenius_wbs.analyze import analyze
+from engenius_wbs.server import COOKIE, FAIL_LIMIT, create_app
+from engenius_wbs.store import Store
+from engenius_wbs.viz import payload
+from test_wbs import CFG, make_small
+
+PW = "test-pass-1234"
+
+
+@pytest.fixture()
+def app_db(tmp_path):
+    db = tmp_path / "wbs.db"
+    with Store(db) as st:
+        st.import_xlsx(make_small(tmp_path / "small.xlsx"), CFG)
+        lv1 = st.db.execute("SELECT uid FROM task WHERE parent_uid IS NULL ORDER BY pos").fetchone()[0]
+        auth.add_role(st.db, "admin1", "관리자 1", "admin", PW)
+        auth.add_role(st.db, "fan", "FAN 리더", "leader", PW, lv1)
+        auth.add_role(st.db, "view", "조회", "viewer", PW)
+    return create_app(db), db
+
+
+def login(c: TestClient, who: str, pw: str = PW):
+    return c.post("/login", data={"login": who, "password": pw}, follow_redirects=False)
+
+
+def test_login_required(app_db):
+    app, _ = app_db
+    c = TestClient(app)
+    r = c.get("/", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "login"
+    for path in ("/data.js", "/api/status", "/api/roles", "/export.xlsx"):
+        assert c.get(path).status_code == 401, path
+    r = c.get("/login")
+    assert r.status_code == 200 and 'name="password"' in r.text and r.headers["x-frame-options"] == "DENY"
+    assert login(c, "view", "wrong-password").status_code == 401
+    assert login(c, "nobody", PW).status_code == 401
+    assert COOKIE not in c.cookies
+
+
+def test_view_same_data_as_build(app_db):
+    app, db = app_db
+    c = TestClient(app)
+    r = login(c, "view")
+    assert r.status_code == 303 and COOKIE in r.cookies
+    ck = r.headers["set-cookie"].lower()
+    assert "httponly" in ck and "samesite=strict" in ck
+    page = c.get("/").text
+    assert "const D=window.__WBS_DATA__;" in page and "__DATA__" not in page.replace("__WBS_DATA__", "")
+    assert '<script src="data.js?r=1"></script>' in page and "조회 (조회자) · 판 #1" in page
+    js = c.get("/data.js")
+    assert js.headers["content-type"].startswith("text/javascript") and js.headers["cache-control"] == "private, no-cache"
+    d = json.loads(js.text[len("window.__WBS_DATA__="):-1])
+    with Store(db) as st:
+        w = st.load(CFG)
+    want = json.loads(json.dumps(payload(w, analyze(w, CFG), CFG)))
+    want["sha256"] = ""
+    d.pop("server")
+    assert d == want                                       # 화면 데이터 = 기존 build 의 보기 데이터 (DB 에서 만든 것)
+    assert c.get("/data.js", headers={"if-none-match": js.headers["etag"]}).status_code == 304
+    # 두 번째 브라우저도 같은 판
+    c2 = TestClient(app)
+    login(c2, "fan")
+    assert c2.get("/data.js").text == js.text and "FAN 리더 · " in c2.get("/").text
+    assert c2.get("/api/status").json() == {"rev": 1, "tasks": 12, "role": "FAN 리더", "kind": "leader"}
+
+
+def test_viewer_rights_and_export(app_db):
+    app, _ = app_db
+    v, a = TestClient(app), TestClient(app)
+    login(v, "view")
+    login(a, "admin1")
+    assert v.get("/api/roles").status_code == 403
+    roles = a.get("/api/roles").json()
+    assert {r["login"]: r["kind"] for r in roles} == {"admin1": "admin", "fan": "leader", "view": "viewer"}
+    assert next(r for r in roles if r["login"] == "fan")["module"]
+    assert v.post("/api/status").status_code == 405       # 읽기 서버 — 쓰는 길이 없다
+    x = v.get("/export.xlsx")
+    assert x.status_code == 200 and "filename*=UTF-8''" in x.headers["content-disposition"]
+    ws = load_workbook(BytesIO(x.content)).worksheets[0]
+    assert ws.cell(4, 9).value is None and ws.cell(3, ws.max_column).value == "UID"
+
+
+def test_session_store_and_logout(app_db):
+    app, db = app_db
+    c = TestClient(app)
+    token = login(c, "admin1").cookies[COOKIE]
+    with Store(db) as st:
+        raw = st.db.execute("SELECT token_hash FROM session").fetchall()
+        pw = st.db.execute("SELECT pw FROM role WHERE login = 'admin1'").fetchone()[0]
+    assert token not in {r[0] for r in raw} and PW not in pw and pw.startswith("pbkdf2_sha256$")
+    assert c.post("/logout", follow_redirects=False).status_code == 303
+    c.cookies.set(COOKIE, token)
+    assert c.get("/api/status").status_code == 401         # 끊긴 토큰은 다시 못 쓴다
+    # 비밀번호를 바꾸거나 역할을 끄면 기존 로그인이 끊긴다
+    c2 = TestClient(app)
+    login(c2, "fan")
+    with Store(db) as st:
+        auth.set_active(st.db, "fan", False)
+    assert c2.get("/api/status").status_code == 401 and login(TestClient(app), "fan").status_code == 401
+
+
+def test_login_throttle(app_db):
+    app, _ = app_db
+    c = TestClient(app)
+    for _ in range(FAIL_LIMIT):
+        assert login(c, "view", "nope-nope").status_code == 401
+    assert login(c, "view").status_code == 429             # 맞는 비밀번호도 잠시 막힌다
+
+
+def test_rev_changes_data(app_db):
+    app, db = app_db
+    c = TestClient(app)
+    login(c, "view")
+    first = c.get("/data.js").text
+    with Store(db) as st:
+        uid = st.db.execute("SELECT uid FROM task WHERE duration_days > 0 AND uid NOT IN (SELECT parent_uid FROM task WHERE parent_uid IS NOT NULL) LIMIT 1").fetchone()[0]
+        st._txn("test")
+        st.db.execute("UPDATE task SET duration_days = duration_days + 2, work_days = work_days + 2 WHERE uid = ?", (uid,))
+        st.recompute(CFG)
+        st.db.commit()
+    assert c.get("/api/status").json()["rev"] == 2
+    second = c.get("/data.js").text
+    assert second != first and '"rev":2' in second
+
+
+def test_role_cli(tmp_path, monkeypatch, capsys):
+    db = tmp_path / "wbs.db"
+    with Store(db) as st:
+        st.import_xlsx(make_small(tmp_path / "small.xlsx"), CFG)
+        code = st.model(CFG).wbs.tasks[1].wbs
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": PW)
+    assert main(["role", "add", "admin1", "--label", "관리자 1", "--kind", "admin", "--db", str(db)]) == 0
+    assert main(["role", "add", "fan", "--label", "FAN 리더", "--kind", "leader", "--module", code, "--db", str(db)]) == 0
+    assert main(["role", "add", "x", "--label", "Y", "--kind", "leader", "--module", "없는 모듈", "--db", str(db)]) == 2
+    assert main(["role", "add", "admin1", "--label", "관리자 2", "--kind", "admin", "--db", str(db)]) == 2
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "short")
+    assert main(["role", "passwd", "fan", "--db", str(db)]) == 2
+    assert main(["role", "list", "--db", str(db)]) == 0
+    out = capsys.readouterr().out
+    assert "관리자 1 (관리자)" in out and "FAN 리더 (모듈 리더) · 모듈" in out and PW not in out
+    with Store(db) as st:
+        assert auth.verify(st.db, "FAN", PW).label == "FAN 리더"      # 로그인 ID 는 대소문자 무시
