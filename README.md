@@ -28,7 +28,8 @@ python -m engenius_wbs apply <WBS.xlsx> <변경.json> [--out 폴더]      # 가�
 python -m engenius_wbs import <WBS.xlsx> [--db 파일] [--force]          # v0.5 S1: 엑셀 → 도구 DB (data/real/wbs.db) — scripts\import.bat 에 끌어다 놓기
 python -m engenius_wbs export [--db 파일] [--out 파일.xlsx]             # 도구 DB → 원본 양식 엑셀 — scripts\export.bat
 python -m engenius_wbs role add <ID> --label 역할이름 --kind admin|leader|viewer [--module Lv1]   # v0.5 S2 역할 계정 (scripts\role.bat)
-python -m engenius_wbs serve [--host 0.0.0.0] [--port 8100]           # 읽기 서버 — 브라우저 http://<서버>:8100/ (scripts\serve.bat)
+python -m engenius_wbs account set <DOMAIN\계정> --role <역할ID>      # Windows 계정 → 역할 (scripts\account.bat) — 표에 없는 계정은 조회자
+python -m engenius_wbs serve [--host 0.0.0.0] [--port 8100]           # 읽기 서버 — 브라우저 http://<서버>:8100/, Windows 계정 로그인 (scripts\serve.bat)
 python -m engenius_wbs synth [--rows 12827]                           # 가짜 WBS → data/synthetic/wbs_synthetic.xlsx
 python -m pytest                                                     # scripts\selftest.bat
 ```
@@ -39,7 +40,7 @@ python -m pytest                                                     # scripts\s
 1. GitHub `aerogyu/En-genius-WBS-Ontology` → **Code → Download ZIP** (`En-genius-WBS-Ontology-main.zip`, 약 1 MB — 합성 WBS 엑셀 포함) → 반입.
 2. 풀어서 **Tool 온톨로지와 같은 부모 폴더**에 둔다 — 예: `C:\EnGenius\engenius-wbs-ontology` (옆에 `C:\EnGenius\engenius-tool-ontology` 가 있어야 한다).
    다른 곳이면 `scripts\env.bat` 의 `TOOL_ONTO_DIR` 를 Tool 온톨로지 폴더로 고친다. 따로 설치할 것 없음 (그쪽 `.venv` 를 쓴다).
-3. `scripts\selftest.bat` 더블클릭 → `40 passed` · `rc=0`.
+3. `scripts\selftest.bat` 더블클릭 → `46 passed` · `rc=0`.
 4. WBS 엑셀(.xlsx — 첫 시트를 읽는다)을 `scripts\build.bat` 위에 끌어다 놓기 → 출력 폴더의 `wbs_view.html`(브라우저)·`report.xlsx`.
    WBS 가 첫 시트가 아니면: `scripts\env.bat` 실행 뒤 `"%PY%" -m engenius_wbs build <파일> --sheet <시트 이름>`.
 5. `P01 헤더를 찾지 못함` 이면 헤더 문구가 별칭에 없다 → `config\wbs.yaml` 을 `data\real\config\wbs.yaml` 로 복사해 `columns` 에 그 문구를 더한다.

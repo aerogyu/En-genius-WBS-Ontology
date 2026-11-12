@@ -1,7 +1,8 @@
 """역할 계정 (v0.5 S2) — 로그인·세션. 표준 라이브러리만 (hashlib PBKDF2·secrets·sqlite3).
 
 docs/05 4장: 이력·화면·내보낸 파일에는 **역할 이름만** 남는다 ('관리자 1', 'FAN 리더'). 사람 이름은 어디에도 적지 않는다.
-사내 계정 연동(S5)은 계정 ID → 역할 표를 서버 DB 에만 두고 이 모듈의 verify 자리에 어댑터를 붙인다.
+Windows 계정 로그인(winauth.py): 계정 → 역할 표(account)는 서버 DB 에만. 표에 없는 계정은 설정에 따라 공용 조회자 역할('조회자 (Windows)')로 —
+그때는 계정을 어디에도 적지 않는다 (세션에도). 도구 역할 계정(ID·비밀번호)은 비상용으로 남긴다.
 
   role     로그인 ID(영문) · 역할 이름 · 종류(admin 관리자 / leader 모듈 리더 / viewer 조회자) · 모듈(Lv1 업무 uid, 리더만) · 비밀번호 해시
   session  로그인 표 — 토큰은 SHA-256 해시만 DB 에 (DB 파일을 봐도 쿠키를 만들 수 없게), 만료 시각
@@ -22,6 +23,8 @@ LOGIN_RE = re.compile(r"^[A-Za-z0-9._-]{2,32}$")
 PBKDF2_ITERS = 240_000
 SESSION_HOURS = 12
 MIN_PASSWORD = 8
+WIN_VIEWER_LOGIN = "_windows"
+WIN_VIEWER_LABEL = "조회자 (Windows)"
 
 AUTH_SCHEMA = """
 CREATE TABLE IF NOT EXISTS role (
@@ -32,6 +35,11 @@ CREATE TABLE IF NOT EXISTS role (
   module_uid INTEGER REFERENCES task(uid),       -- 모듈 리더의 Lv1 업무
   pw TEXT NOT NULL,                              -- pbkdf2_sha256$반복$소금$해시
   active INTEGER NOT NULL DEFAULT 1,
+  created TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS account (
+  account TEXT PRIMARY KEY COLLATE NOCASE,       -- Windows 계정 'domain\\user' (소문자) — 서버 DB 에만
+  role_id INTEGER NOT NULL REFERENCES role(id),
   created TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS session (
@@ -61,6 +69,10 @@ class Role:
 
 def ensure(db: sqlite3.Connection) -> None:
     db.executescript(AUTH_SCHEMA)
+    if not db.execute("SELECT 1 FROM role WHERE login = ?", (WIN_VIEWER_LOGIN,)).fetchone():   # 공용 조회자 역할은 늘 있다 (끄고 켤 수 있게)
+        db.execute("INSERT INTO role(login, label, kind, module_uid, pw, created) VALUES(?,?,?,?,?,?)",
+                   (WIN_VIEWER_LOGIN, WIN_VIEWER_LABEL, "viewer", None, "!", datetime.now().isoformat(timespec="seconds")))
+        db.commit()
 
 
 def hash_password(pw: str, iters: int = PBKDF2_ITERS) -> str:
@@ -152,6 +164,46 @@ def verify(db: sqlite3.Connection, login: str, password: str) -> Role | None:
         check_password(password or "", _DUMMY)          # 없는 ID 도 비슷한 시간이 걸리게
         return None
     return _role(r) if check_password(password or "", r["pw"]) else None
+
+
+def windows_viewer(db: sqlite3.Connection) -> Role | None:
+    """표에 없는 Windows 계정이 들어오는 공용 조회자 역할. 비밀번호로는 들어올 수 없다. `role off _windows` 로 끄면 등록된 계정만."""
+    ensure(db)
+    r = db.execute("SELECT * FROM role WHERE login = ?", (WIN_VIEWER_LOGIN,)).fetchone()
+    return _role(r) if r["active"] else None
+
+
+def set_account(db: sqlite3.Connection, account_key: str, role_login: str) -> Role:
+    ensure(db)
+    r = db.execute("SELECT * FROM role WHERE login = ?", (role_login,)).fetchone()
+    if not r:
+        raise ValueError(f"없는 역할 로그인 ID: {role_login}  (role list 로 확인)")
+    db.execute("INSERT INTO account(account, role_id, created) VALUES(?,?,?) ON CONFLICT(account) DO UPDATE SET role_id = excluded.role_id",
+               (account_key.lower(), r["id"], datetime.now().isoformat(timespec="seconds")))
+    db.commit()
+    return _role(r)
+
+
+def remove_account(db: sqlite3.Connection, account_key: str) -> bool:
+    ensure(db)
+    n = db.execute("DELETE FROM account WHERE account = ?", (account_key.lower(),)).rowcount
+    db.commit()
+    return bool(n)
+
+
+def list_accounts(db: sqlite3.Connection) -> list[sqlite3.Row]:
+    ensure(db)
+    return db.execute("SELECT a.account, r.login, r.label, r.kind, r.active FROM account a JOIN role r ON r.id = a.role_id "
+                      "ORDER BY r.kind, r.label, a.account").fetchall()
+
+
+def account_role(db: sqlite3.Connection, account_key: str, unregistered: str = "viewer") -> Role | None:
+    """Windows 확인을 통과한 계정의 역할. 표에 있으면 그 역할(꺼져 있으면 None), 없으면 설정에 따라 공용 조회자 또는 None."""
+    ensure(db)
+    r = db.execute("SELECT r.* FROM account a JOIN role r ON r.id = a.role_id WHERE a.account = ?", (account_key.lower(),)).fetchone()
+    if r is not None:
+        return _role(r) if r["active"] else None
+    return windows_viewer(db) if unregistered == "viewer" else None
 
 
 def _th(token: str) -> str:

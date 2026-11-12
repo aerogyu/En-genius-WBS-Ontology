@@ -11,7 +11,7 @@ pytest.importorskip("httpx")
 from openpyxl import load_workbook
 from starlette.testclient import TestClient
 
-from engenius_wbs import auth
+from engenius_wbs import auth, winauth
 from engenius_wbs.__main__ import main
 from engenius_wbs.analyze import analyze
 from engenius_wbs.server import COOKIE, FAIL_LIMIT, create_app
@@ -34,8 +34,8 @@ def app_db(tmp_path):
     return create_app(db), db
 
 
-def login(c: TestClient, who: str, pw: str = PW):
-    return c.post("/login", data={"login": who, "password": pw}, follow_redirects=False)
+def login(c: TestClient, who: str, pw: str = PW, mode: str = "role"):
+    return c.post("/login", data={"login": who, "password": pw, "mode": mode}, follow_redirects=False)
 
 
 def test_login_required(app_db):
@@ -87,7 +87,7 @@ def test_viewer_rights_and_export(app_db):
     login(a, "admin1")
     assert v.get("/api/roles").status_code == 403
     roles = a.get("/api/roles").json()
-    assert {r["login"]: r["kind"] for r in roles} == {"admin1": "admin", "fan": "leader", "view": "viewer"}
+    assert {r["login"]: r["kind"] for r in roles if r["login"] != auth.WIN_VIEWER_LOGIN} == {"admin1": "admin", "fan": "leader", "view": "viewer"}
     assert next(r for r in roles if r["login"] == "fan")["module"]
     assert v.post("/api/status").status_code == 405       # 읽기 서버 — 쓰는 길이 없다
     x = v.get("/export.xlsx")
@@ -156,3 +156,122 @@ def test_role_cli(tmp_path, monkeypatch, capsys):
     assert "관리자 1 (관리자)" in out and "FAN 리더 (모듈 리더) · 모듈" in out and PW not in out
     with Store(db) as st:
         assert auth.verify(st.db, "FAN", PW).label == "FAN 리더"      # 로그인 ID 는 대소문자 무시
+
+
+# --- Windows 계정 로그인 (확인 자체는 가짜로 바꿔 끼운다 — 개발 PC 에서 사내 계정을 쓸 수 없다) -------------------------------
+WIN_PW = "windows-pass-xyz"
+
+
+@pytest.fixture()
+def fake_windows(monkeypatch):
+    calls = []
+
+    def check(account, password, domain=None):
+        calls.append(account)
+        _, _, key = winauth.split_account(account, "corp")
+        return key if password == WIN_PW else None
+    monkeypatch.setattr(winauth, "check_windows", check)
+    monkeypatch.setattr(winauth, "available", lambda: True)
+    return calls
+
+
+@pytest.fixture()
+def win_app(tmp_path, fake_windows):
+    db = tmp_path / "wbs.db"
+    with Store(db) as st:
+        st.import_xlsx(make_small(tmp_path / "small.xlsx"), CFG)
+        auth.add_role(st.db, "admin1", "관리자 1", "admin", PW)
+        auth.set_account(st.db, "corp\\boss", "admin1")
+    cfg = tmp_path / "wbs.yaml"
+    return db, cfg
+
+
+def _app(db, cfg, unregistered="viewer"):
+    import yaml
+    from engenius_wbs.config import find_config
+    c = yaml.safe_load(find_config().read_text(encoding="utf-8"))
+    c["windows_login"] = {"enabled": True, "domain": "corp", "unregistered": unregistered}
+    cfg.write_text(yaml.safe_dump(c, allow_unicode=True), encoding="utf-8")
+    return create_app(db, cfg)
+
+
+def test_windows_login(win_app, fake_windows):
+    db, cfg = win_app
+    app = _app(db, cfg)
+    page = TestClient(app).get("/login").text
+    assert 'name="mode"' in page and "corp" in page and "조회자로" in page
+    # 등록 안 된 계정 → 공용 조회자, 계정은 어디에도 남지 않는다
+    c = TestClient(app)
+    assert login(c, "someone", WIN_PW, "win").status_code == 303
+    s = c.get("/api/status").json()
+    assert s["role"] == auth.WIN_VIEWER_LABEL and s["kind"] == "viewer"
+    assert c.get("/api/roles").status_code == 403
+    with Store(db) as st:
+        dump = "\n".join(str(tuple(r)) for t in ("session", "account", "role", "txn") for r in st.db.execute(f"SELECT * FROM {t}"))
+    assert "someone" not in dump
+    # 등록된 계정 → 그 역할 (표기는 user · DOMAIN\\user · 대소문자 상관없음)
+    for who in ("boss", "CORP\\Boss"):
+        a = TestClient(app)
+        assert login(a, who, WIN_PW, "win").status_code == 303
+        assert a.get("/api/status").json()["role"] == "관리자 1" and a.get("/api/roles").status_code == 200
+    assert login(TestClient(app), "boss", "wrong", "win").status_code == 401
+    # 역할 계정(비상용)은 Windows 확인을 거치지 않는다
+    n = len(fake_windows)
+    assert login(TestClient(app), "admin1", PW, "role").status_code == 303 and len(fake_windows) == n
+
+
+def test_windows_unregistered_policy(win_app):
+    db, cfg = win_app
+    app = _app(db, cfg, "deny")
+    assert "조회자로" not in TestClient(app).get("/login").text
+    r = login(TestClient(app), "someone", WIN_PW, "win")
+    assert r.status_code == 401 and "등록되지 않은" in r.text
+    assert login(TestClient(app), "boss", WIN_PW, "win").status_code == 303
+    # viewer 설정이어도 공용 조회자 역할을 끄면 등록된 계정만
+    app = _app(db, cfg, "viewer")
+    with Store(db) as st:
+        auth.set_active(st.db, auth.WIN_VIEWER_LOGIN, False)
+    assert login(TestClient(app), "someone", WIN_PW, "win").status_code == 401
+    # 역할을 끄면 그 역할에 매인 계정도 못 들어온다
+    with Store(db) as st:
+        auth.set_active(st.db, "admin1", False)
+    assert login(TestClient(app), "boss", WIN_PW, "win").status_code == 401
+
+
+def test_windows_throttle_per_account(win_app):
+    db, cfg = win_app
+    app = _app(db, cfg)
+    for i in range(FAIL_LIMIT):
+        assert login(TestClient(app), "boss", "wrong", "win").status_code == 401
+    srv = app.state.wbs
+    srv.fails.pop("ip:testclient", None)                 # 다른 PC 에서 와도
+    assert login(TestClient(app), "boss", WIN_PW, "win").status_code == 429   # 그 계정은 막혀 있다 (사내 계정 잠금 전에)
+
+
+def test_split_account():
+    assert winauth.split_account("Kim", "CORP") == ("CORP", "Kim", "corp\\kim")
+    assert winauth.split_account("corp\\kim", "X")[2] == "corp\\kim"
+    assert winauth.split_account("kim@corp.example.com")[2] == "corp\\kim"
+    for bad in ("", "a\\b\\c", "a@b@c", "x:y", "a<b"):
+        with pytest.raises(ValueError):
+            winauth.split_account(bad, "D")
+
+
+@pytest.mark.skipif(not winauth.available(), reason="Windows 전용")
+def test_real_windows_rejects_unknown_account():
+    assert winauth.check_windows("no-such-user-wbs-test-7f3a", "x-not-a-password", ".") is None
+    assert winauth.check_windows("", "x") is None and winauth.check_windows("someone", "") is None
+
+
+def test_account_cli(tmp_path, capsys):
+    db = tmp_path / "wbs.db"
+    with Store(db) as st:
+        st.import_xlsx(make_small(tmp_path / "small.xlsx"), CFG)
+        auth.add_role(st.db, "fan", "FAN 리더", "viewer", PW)
+    assert main(["account", "set", "CORP\\Lee", "--role", "fan", "--db", str(db)]) == 0
+    assert main(["account", "set", "corp\\lee", "--role", "nope", "--db", str(db)]) == 2
+    assert main(["account", "list", "--db", str(db)]) == 0
+    assert "corp\\lee" in capsys.readouterr().out
+    assert main(["account", "remove", "CORP\\LEE", "--db", str(db)]) == 0
+    with Store(db) as st:
+        assert auth.list_accounts(st.db) == []

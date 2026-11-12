@@ -2,7 +2,9 @@
 rem Start the WBS read-only server (v0.5 S2) for the whole in-house network: http://<this PC IP>:8100/
 rem   Keep this window open while people use it; Ctrl+C stops it. Uses data\real\wbs.db.
 rem   First time: Windows may ask to allow network access (firewall) - that is your decision (private network only).
-rem   Needs at least one admin role: scripts\role.bat add admin1 --label "Admin 1" --kind admin
+rem   Login: Windows account (checked by this PC's Windows; the PC must be in the company domain). Not listed = viewer.
+rem   Admin: scripts\role.bat add admin1 --label "Admin 1" --kind admin  then  scripts\account.bat set DOMAIN\you --role admin1
+rem   HTTPS with an in-house certificate: scripts\serve.bat --cert cert.pem --key key.pem
 rem   Other port: scripts\serve.bat --port 8200    Only this PC: scripts\serve.bat --host 127.0.0.1
 rem This .bat is ASCII-only on purpose: cmd reads .bat files as cp949 on Korean Windows.
 setlocal

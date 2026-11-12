@@ -24,7 +24,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
-from . import auth
+from . import auth, winauth
 from .analyze import analyze
 from .config import load_config
 from .store import Store
@@ -50,6 +50,10 @@ class WbsServer:
         self.title = title
         self._lock = threading.Lock()
         self._cache: tuple[int, bytes, dict] | None = None
+        wl = self.cfg.get("windows_login") or {}
+        self.win = bool(wl.get("enabled", True)) and winauth.available()
+        self.win_domain = winauth.default_domain(wl.get("domain") or None)
+        self.win_unregistered = wl.get("unregistered", "viewer")
         self.fails: dict[str, deque] = defaultdict(deque)
         with self.connect() as st:
             auth.ensure(st.db)
@@ -84,8 +88,8 @@ class WbsServer:
         with self.connect() as st:
             return auth.session_role(st.db, request.cookies.get(COOKIE))
 
-    def blocked(self, ip: str) -> bool:
-        q = self.fails[ip]
+    def blocked(self, key: str) -> bool:
+        q = self.fails[key]
         now = time.time()
         while q and q[0] < now - FAIL_WINDOW:
             q.popleft()
@@ -106,8 +110,18 @@ def _h(resp: Response, cache: str = "no-store") -> Response:
     return resp
 
 
-def _login_page(title: str, msg: str = "", status: int = 200) -> Response:
+def _login_page(title: str, msg: str = "", status: int = 200, win: bool = False, domain: str = "", https: bool = False,
+                open_view: bool = True) -> Response:
     m = f'<p class="err">{html.escape(msg)}</p>' if msg else ""
+    if win:
+        head = (f'<p>Windows 계정(사내 PC 로그인)으로 — 계정만 적으면 {html.escape(domain)}\\계정.'
+                + (' 등록 안 된 계정은 조회자로 들어간다.' if open_view else '') + '</p>')
+        mode = ('<label for="m">로그인 방식</label><select id="m" name="mode"><option value="win">Windows 계정</option>'
+                '<option value="role">도구 역할 계정 (비상용)</option></select>')
+        uid = "계정"
+    else:
+        head, mode, uid = "<p>역할 계정으로 로그인 (관리자가 발급)</p>", '<input type="hidden" name="mode" value="role">', "로그인 ID"
+    warn = "" if https else '<p class="warn">이 접속은 암호화되지 않는다 (HTTP) — 사내망 안에서만 쓸 것.</p>'
     page = f"""<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)} — 로그인</title><style>
 :root{{--bg:#fafafa;--fg:#1f2328;--mut:#6b7280;--line:#d0d7de;--card:#fff;--acc:#2563eb;--hot:#dc2626}}
@@ -115,14 +129,14 @@ def _login_page(title: str, msg: str = "", status: int = 200) -> Response:
 body{{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 "Malgun Gothic","Apple SD Gothic Neo",sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center}}
 form{{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:24px 28px;width:min(340px,calc(100vw - 32px))}}
 h1{{font-size:17px;margin:0 0 4px}}p{{margin:0 0 16px;color:var(--mut);font-size:12px}}label{{display:block;margin:10px 0 4px}}
-input{{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}}
+select,input{{width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}}
 button{{margin-top:18px;width:100%;padding:8px;border:0;border-radius:6px;background:var(--acc);color:#fff;font:inherit;cursor:pointer}}
-.err{{color:var(--hot);font-size:13px;margin:10px 0 0}}
+.err{{color:var(--hot);font-size:13px;margin:10px 0 0}}.warn{{margin:14px 0 0;font-size:11px}}
 </style></head><body><form method="post" action="login" autocomplete="off">
-<h1>{html.escape(title)}</h1><p>역할 계정으로 로그인 (관리자가 발급)</p>
-<label for="u">로그인 ID</label><input id="u" name="login" required maxlength="32" autofocus>
+<h1>{html.escape(title)}</h1>{head}{mode}
+<label for="u">{uid}</label><input id="u" name="login" required maxlength="110" autofocus>
 <label for="p">비밀번호</label><input id="p" name="password" type="password" required maxlength="200">
-{m}<button type="submit">로그인</button></form></body></html>"""
+{m}<button type="submit">로그인</button>{warn}</form></body></html>"""
     return _h(HTMLResponse(page, status_code=status))
 
 
@@ -176,23 +190,42 @@ def create_app(db_path: str | Path, cfg_path: str | Path | None = None, title: s
         return _h(Response(js, media_type="text/javascript; charset=utf-8", headers={"ETag": etag}), "private, no-cache")
 
     async def login(request: Request):
+        https = request.url.scheme == "https"
+
+        def page(msg: str = "", status: int = 200) -> Response:
+            return _login_page(srv.title, msg, status, srv.win, srv.win_domain, https, srv.win_unregistered == "viewer")
         if request.method == "GET":
-            return _login_page(srv.title)
-        ip = request.client.host if request.client else "-"
-        if srv.blocked(ip):
-            return _login_page(srv.title, "여러 번 틀려 10분 동안 막혔습니다. 잠시 뒤 다시 하세요.", 429)
+            return page()
         body = (await request.body())[:4096].decode("utf-8", "replace")
         form = {k: v[0] for k, v in parse_qs(body, keep_blank_values=True).items()}
+        who = form.get("login", "").strip()
+        win = srv.win and form.get("mode", "win") != "role"
+        ip = "ip:" + (request.client.host if request.client else "-")
+        acct = "acct:" + who.lower()                     # 계정별로도 막는다 (사내 계정 잠금 전에)
+        if srv.blocked(ip) or srv.blocked(acct):
+            return page("여러 번 틀려 10분 동안 막혔습니다. 잠시 뒤 다시 하세요.", 429)
 
         def check():
+            if win:
+                key = winauth.check_windows(who, form.get("password", ""), srv.win_domain)
+                if key is None:
+                    return None, None, "계정 또는 비밀번호가 맞지 않습니다."
+                with srv.connect() as st:
+                    role = auth.account_role(st.db, key, srv.win_unregistered)
+                    if role is None:
+                        return None, None, "이 도구에 등록되지 않은 계정입니다. 관리자에게 문의하세요."
+                    return role, auth.new_session(st.db, role), ""
             with srv.connect() as st:
-                role = auth.verify(st.db, form.get("login", "").strip(), form.get("password", ""))
-                return (role, auth.new_session(st.db, role)) if role else (None, None)
-        role, token = await run_in_threadpool(check)
+                role = auth.verify(st.db, who, form.get("password", ""))
+                return (role, auth.new_session(st.db, role), "") if role else (None, None, "로그인 ID 또는 비밀번호가 맞지 않습니다.")
+        role, token, msg = await run_in_threadpool(check)
         if role is None:
-            srv.fails[ip].append(time.time())
-            return _login_page(srv.title, "로그인 ID 또는 비밀번호가 맞지 않습니다.", 401)
+            now = time.time()
+            srv.fails[ip].append(now)
+            srv.fails[acct].append(now)
+            return page(msg, 401)
         srv.fails.pop(ip, None)
+        srv.fails.pop(acct, None)
         resp = RedirectResponse("./", status_code=303)
         resp.set_cookie(COOKIE, token, max_age=int(auth.SESSION_HOURS * 3600), path="/", httponly=True, samesite="strict",
                         secure=request.url.scheme == "https")
@@ -226,8 +259,9 @@ def create_app(db_path: str | Path, cfg_path: str | Path | None = None, title: s
         def get():
             with srv.connect() as st:
                 rows = auth.list_roles(st.db, include_off=True)
+                n = dict(st.db.execute("SELECT role_id, COUNT(*) FROM account GROUP BY role_id").fetchall())
             return [{"login": r["login"], "label": r["label"], "kind": r["kind"], "module": srv.module_name(r["module_uid"]),
-                     "active": bool(r["active"])} for r in rows]
+                     "active": bool(r["active"]), "accounts": n.get(r["id"], 0)} for r in rows]
         return _h(JSONResponse(await run_in_threadpool(get)))
 
     async def export(request: Request):

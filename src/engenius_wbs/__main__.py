@@ -13,7 +13,9 @@
     role add <로그인ID> --label 역할이름 --kind admin|leader|viewer [--module Lv1 이름·WBS 코드] [--db]   (비밀번호는 물어봄)
     role list | role passwd <로그인ID> | role off <로그인ID> | role on <로그인ID>
         → 역할 계정 (v0.5 S2). 역할 이름만 이력에 남는다 — 사람 이름을 쓰지 않는다
-    serve [--db data/real/wbs.db] [--host 127.0.0.1] [--port 8100] [--title 이름]
+    account set <DOMAIN\\계정> --role <역할 로그인ID> | account list | account remove <DOMAIN\\계정>
+        → Windows 계정 → 역할 (서버 DB 에만). 표에 없는 계정은 설정 windows_login.unregistered 에 따라 조회자/거절
+    serve [--db data/real/wbs.db] [--host 127.0.0.1] [--port 8100] [--title 이름] [--cert 파일 --key 파일]
         → 읽기 서버 (v0.5 S2) — 브라우저로 http://<서버>:<포트>/ (starlette·uvicorn 필요)
 """
 from __future__ import annotations
@@ -260,6 +262,45 @@ def cmd_role(a) -> int:
     return 0
 
 
+def cmd_account(a) -> int:
+    from . import auth, winauth
+    from .store import Store
+
+    db = Path(a.db)
+    if not db.exists():
+        print(f"[NG] DB 가 없다: {db}  (먼저 import)")
+        return 2
+    cfg = load_config(a.config)
+    dom = winauth.default_domain((cfg.get("windows_login") or {}).get("domain") or None)
+    try:
+        with Store(db) as st:
+            auth.ensure(st.db)
+            if a.action == "list":
+                rows = auth.list_accounts(st.db)
+                wv = auth.windows_viewer(st.db)
+                print(f"[account] 등록 {len(rows)} · 표에 없는 계정: "
+                      + ("공용 조회자로 들임" if (cfg.get("windows_login") or {}).get("unregistered", "viewer") == "viewer" and wv else "거절"))
+                for r in rows:
+                    print(f"  {r['account']:<28} → {r['label']} ({auth.KINDS[r['kind']]}){'' if r['active'] else ' · 역할 꺼짐'}")
+                return 0
+            if not a.account:
+                print("[NG] 계정을 주세요 (예: DOMAIN\\user)")
+                return 2
+            _, _, key = winauth.split_account(a.account, dom)
+            if a.action == "set":
+                if not a.role:
+                    print("[NG] --role <역할 로그인ID> 가 필요하다 (role list 로 확인)")
+                    return 2
+                r = auth.set_account(st.db, key, a.role)
+                print(f"[account] {key} → {r.label} ({r.kind_ko})")
+            else:
+                print(f"[account] {key} " + ("지움" if auth.remove_account(st.db, key) else "없음"))
+    except ValueError as e:
+        print(f"[NG] {e}")
+        return 2
+    return 0
+
+
 def cmd_serve(a) -> int:
     try:
         import uvicorn
@@ -276,8 +317,8 @@ def cmd_serve(a) -> int:
             with Store(db) as st:
                 auth.ensure(st.db)
                 if not any(r["kind"] == "admin" and r["active"] for r in auth.list_roles(st.db)):
-                    print("[NG] 관리자 역할이 없다 — 먼저: role add admin1 --label \"관리자 1\" --kind admin")
-                    return 2
+                    print("[serve] 관리자 역할이 아직 없다 (보기에는 지장 없음) — 만들려면: role add admin1 --label \"관리자 1\" --kind admin"
+                          " 뒤 account set <내 Windows 계정> --role admin1")
         t0 = time.perf_counter()
         app = create_app(db, a.config, a.title or "WBS")
         _, _, info = app.state.wbs.data()          # 첫 화면이 기다리지 않게 미리 계산
@@ -286,8 +327,18 @@ def cmd_serve(a) -> int:
         return 2
     print(f"[serve] {db.name} · 업무 {info['tasks']:,} · 선행 {info['edges']:,} · 판 #{info['rev']} ({time.perf_counter() - t0:.1f}초)")
     shown = "<이 PC 의 IP>" if a.host in ("0.0.0.0", "::") else a.host
-    print(f"  · 브라우저: http://{shown}:{a.port}/   (끄려면 이 창에서 Ctrl+C)")
-    uvicorn.run(app, host=a.host, port=a.port, log_level="warning")
+    if bool(a.cert) != bool(a.key):
+        print("[NG] HTTPS 는 --cert 와 --key 를 함께")
+        return 2
+    srv = app.state.wbs
+    print("  · 로그인: " + (f"Windows 계정 (기본 도메인 {srv.win_domain}, 등록 안 된 계정 = "
+                            + ("조회자" if srv.win_unregistered == "viewer" else "거절") + ") + 도구 역할 계정(비상용)"
+                            if srv.win else "도구 역할 계정만"))
+    if not a.cert:
+        print("  · HTTP (암호화 없음) — 비밀번호가 망을 그대로 지난다. 사내 인증서가 있으면 --cert·--key 로 HTTPS")
+    proto = "https" if a.cert else "http"
+    print(f"  · 브라우저: {proto}://{shown}:{a.port}/   (끄려면 이 창에서 Ctrl+C)")
+    uvicorn.run(app, host=a.host, port=a.port, log_level="warning", ssl_certfile=a.cert, ssl_keyfile=a.key)
     return 0
 
 
@@ -341,15 +392,23 @@ def main(argv=None) -> int:
     r.add_argument("--module", help="모듈 리더의 Lv1 — 이름 또는 WBS 코드")
     r.add_argument("--db", default=default_db)
     r.add_argument("--config")
+    ac = sub.add_parser("account", help="Windows 계정 → 역할 (v0.5 S2)")
+    ac.add_argument("action", choices=["set", "list", "remove"])
+    ac.add_argument("account", nargs="?")
+    ac.add_argument("--role", help="역할 로그인 ID (role list)")
+    ac.add_argument("--db", default=default_db)
+    ac.add_argument("--config")
     s = sub.add_parser("serve", help="읽기 서버 (v0.5 S2)")
     s.add_argument("--db", default=default_db)
     s.add_argument("--host", default="127.0.0.1", help="다른 PC 에서 들어오게 하려면 0.0.0.0")
     s.add_argument("--port", type=int, default=8100)
     s.add_argument("--title")
+    s.add_argument("--cert", help="HTTPS 인증서 파일 (PEM)")
+    s.add_argument("--key", help="HTTPS 개인 키 파일 (PEM)")
     s.add_argument("--config")
     a = ap.parse_args(argv)
     return {"build": cmd_build, "synth": cmd_synth, "apply": cmd_apply, "import": cmd_import, "export": cmd_export,
-            "role": cmd_role, "serve": cmd_serve}[a.cmd](a)
+            "role": cmd_role, "account": cmd_account, "serve": cmd_serve}[a.cmd](a)
 
 
 if __name__ == "__main__":
