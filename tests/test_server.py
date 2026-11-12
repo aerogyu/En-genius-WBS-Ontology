@@ -277,3 +277,47 @@ def test_account_cli(tmp_path, capsys):
     assert main(["account", "remove", "CORP\\LEE", "--db", str(db)]) == 0
     with Store(db) as st:
         assert auth.list_accounts(st.db) == []
+
+
+def test_reimport_keeps_roles_and_refreshes_server(tmp_path, monkeypatch, capsys):
+    db = tmp_path / "wbs.db"
+    src = make_small(tmp_path / "small.xlsx")
+    assert main(["import", str(src), "--db", str(db)]) == 0
+    with Store(db) as st:
+        lv1 = st.db.execute("SELECT uid FROM task WHERE parent_uid IS NULL").fetchone()[0]
+        auth.add_role(st.db, "admin1", "관리자 1", "admin", PW)
+        auth.add_role(st.db, "fan", "FAN 리더", "leader", PW, lv1)
+        auth.set_account(st.db, "corp\boss", "admin1")
+        auth.set_active(st.db, auth.WIN_VIEWER_LOGIN, False)
+    app = create_app(db)
+    c = TestClient(app)
+    login(c, "fan")
+    first = c.get("/data.js").text
+    # 묻는 모드인데 대화 창이 아니면 그만둔다 · 망가진 파일이면 기존 DB 그대로
+    assert main(["import", str(src), "--db", str(db), "--ask"]) == 2
+    bad = tmp_path / "bad.xlsx"
+    bad.write_bytes(b"not an excel file")
+    assert main(["import", str(bad), "--db", str(db), "--force"]) == 2
+    assert not list(tmp_path.glob("wbs.db.bak-*")) and not (tmp_path / "wbs.db.new").exists()
+    with Store(db) as st:
+        assert st.count() == 12
+    # 묻는 모드 + 예 → 덮어씀, 옛 DB 는 .bak, 역할·계정·비밀번호 그대로
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True, raising=False)
+    monkeypatch.setattr("builtins.input", lambda prompt="": "y")
+    wb = load_workbook(src)
+    wb.active.cell(9, 3).value = "   " * 5 + "B 새 이름"
+    wb.save(src)
+    assert main(["import", str(src), "--db", str(db), "--ask"]) == 0
+    assert len(list(tmp_path.glob("wbs.db.bak-*"))) == 1
+    out = capsys.readouterr().out
+    assert "역할 2 · Windows 계정 1 를 새 DB 로 옮김" in out and "못 찾은" not in out
+    with Store(db) as st:
+        assert auth.verify(st.db, "fan", PW).module_uid == st.db.execute("SELECT uid FROM task WHERE parent_uid IS NULL").fetchone()[0]
+        assert auth.account_role(st.db, "corp\boss").label == "관리자 1"
+        assert auth.windows_viewer(st.db) is None                 # 껐던 공용 조회자도 그대로
+        assert st.db.execute("SELECT COUNT(*) FROM session").fetchone()[0] == 0
+    # 서버는 판 번호가 같아도(1) 새 DB 를 알아본다 — 로그인은 다시
+    assert c.get("/api/status").status_code == 401
+    login(c, "fan")
+    second = c.get("/data.js").text
+    assert second != first and "B 새 이름" in second

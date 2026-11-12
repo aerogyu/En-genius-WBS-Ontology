@@ -120,6 +120,52 @@ COL_KO = {"row_no": "번호", "wbs": "WBS", "name": "이름", "duration": "기�
           "staff": "투입인력", "man_hours": "Man Hours", "deliverable": "산출물"}
 
 
+def _old_access(db: Path) -> tuple[int, int, list[dict], list[dict]]:
+    """덮어쓸 DB 의 업무 수 · 저장(편집) 수 · 역할 · Windows 계정 표 — 새 DB 로 옮기려고 읽어 둔다."""
+    from . import auth
+    from .store import Store
+
+    with Store(db) as st:
+        auth.ensure(st.db)
+        n = st.count()
+        edits = st.db.execute("SELECT COUNT(*) FROM txn WHERE kind = 'edit'").fetchone()[0]
+        roles = [dict(r) | {"module_name": (st.db.execute("SELECT name FROM task WHERE uid = ?", (r["module_uid"],)).fetchone() or [None])[0]}
+                 for r in st.db.execute("SELECT * FROM role WHERE login != ?", (auth.WIN_VIEWER_LOGIN,))]
+        win = st.db.execute("SELECT active FROM role WHERE login = ?", (auth.WIN_VIEWER_LOGIN,)).fetchone()
+        roles.append({"login": auth.WIN_VIEWER_LOGIN, "active": win[0] if win else 1, "builtin": True})
+        accounts = [dict(r) for r in st.db.execute("SELECT a.account, r.login FROM account a JOIN role r ON r.id = a.role_id")]
+    return n, edits, roles, accounts
+
+
+def _carry_access(st, roles: list[dict], accounts: list[dict]) -> list[str]:
+    """역할(비밀번호 해시 그대로)·계정 표를 새 DB 에. 모듈 리더의 모듈은 Lv1 이름으로 다시 찾는다 → 못 찾은 역할 이름 목록."""
+    from . import auth
+
+    auth.ensure(st.db)
+    lv1 = {}
+    for r in st.db.execute("SELECT uid, name FROM task WHERE parent_uid IS NULL AND deleted = 0"):
+        lv1.setdefault(r["name"].strip(), []).append(r["uid"])
+    lost = []
+    for r in roles:
+        if r.get("builtin"):
+            st.db.execute("UPDATE role SET active = ? WHERE login = ?", (r["active"], r["login"]))
+            continue
+        mod = None
+        if r["kind"] == "leader":
+            hit = lv1.get((r["module_name"] or "").strip(), [])
+            mod = hit[0] if len(hit) == 1 else None
+            if mod is None:
+                lost.append(r["label"])
+        st.db.execute("INSERT INTO role(login, label, kind, module_uid, pw, active, created) VALUES(?,?,?,?,?,?,?)",
+                      (r["login"], r["label"], r["kind"], mod, r["pw"], r["active"], r["created"]))
+    for x in accounts:
+        rid = st.db.execute("SELECT id FROM role WHERE login = ?", (x["login"],)).fetchone()
+        if rid:
+            st.db.execute("INSERT INTO account(account, role_id, created) VALUES(?,?,datetime('now'))", (x["account"], rid[0]))
+    st.db.commit()
+    return lost
+
+
 def cmd_import(a) -> int:
     from .store import Store
 
@@ -128,30 +174,44 @@ def cmd_import(a) -> int:
         print(f"[NG] 파일이 없다: {src}")
         return 2
     cfg = load_config(a.config)
+    old = None
     if db.exists():
-        with Store(db) as st:
-            n = st.count()
-        if n and not a.force:
-            print(f"[NG] 이미 업무 {n:,}개가 들어 있는 DB 다: {db}")
-            print("     다른 --db 를 주거나, 새로 들여오려면 --force (옛 DB 는 .bak-<시각> 으로 이름을 바꿔 남긴다)")
-            return 2
-        bak = db.with_name(f"{db.name}.bak-{datetime.now().strftime('%Y%m%dT%H%M%S')}")
-        db.rename(bak)
+        n, edits, roles, accounts = _old_access(db)
         if n:
-            print(f"[import] 옛 DB → {bak.name}")
-        else:
-            bak.unlink()
+            print(f"[import] 이미 업무 {n:,}개가 든 DB 가 있다: {db}")
+            if edits:
+                print(f"  · 이 DB 에 서버에서 저장한 편집이 {edits}번 있다 — 새로 들여오면 화면에서는 사라진다 (옛 DB 파일에는 남음)")
+            print("  · 덮어쓰면 옛 DB 는 .bak-<시각> 으로 이름을 바꿔 남기고, 역할·Windows 계정 표는 새 DB 로 옮긴다")
+            ok = a.force
+            if not ok and a.ask and sys.stdin and sys.stdin.isatty():
+                ok = input("  덮어쓸까요? (y/N): ").strip().lower() in ("y", "yes", "예", "ㅛ")
+            if not ok:
+                print("[import] 그만둠 — 덮어쓰려면 --force (import.bat 은 물어본다)")
+                return 2
+            old = (roles, accounts)
     t0 = time.perf_counter()
+    tmp = db.with_name(db.name + ".new")
+    if tmp.exists():
+        tmp.unlink()
     try:
-        with Store(db) as st:
+        with Store(tmp) as st:
             rep = st.import_xlsx(src, cfg, a.sheet)
             notes = [dict(r) for r in st.db.execute(
                 "SELECT n.task_uid AS uid, t.src_no AS no, t.src_row AS excel_row, n.col, n.old, n.new FROM note n JOIN task t ON t.uid = n.task_uid ORDER BY n.id")]
-    except ValueError as e:
-        print(f"[NG] {e}")
-        if db.exists() and not db.stat().st_size:
-            db.unlink()
+            lost = _carry_access(st, *old) if old else []
+    except Exception as e:                                # 엑셀이 아니거나 망가진 파일 포함
+        print(f"[NG] 들여오지 못함: {type(e).__name__}: {e}  (기존 DB 는 그대로)")
+        if tmp.exists():
+            tmp.unlink()
         return 2
+    if db.exists():                                       # 새 DB 가 다 만들어진 뒤에만 옛 것을 옮긴다
+        bak = db.with_name(f"{db.name}.bak-{datetime.now().strftime('%Y%m%dT%H%M%S')}")
+        db.rename(bak)
+        print(f"[import] 옛 DB → {bak.name}")
+    tmp.rename(db)
+    if old:
+        print(f"  · 역할 {len([r for r in old[0] if not r.get('builtin')])} · Windows 계정 {len(old[1])} 를 새 DB 로 옮김"
+              + (f" — 모듈을 못 찾은 리더: {', '.join(lost)} (role 로 다시 정할 것)" if lost else ""))
     out = db.with_name(db.stem + ".import_notes.json")
     out.write_text(json.dumps({"source": src.name, "db": db.name, "tasks": rep.tasks, "deps": rep.deps, "moved": rep.moved,
                                "dropped_columns": rep.dropped_columns, "kept_columns": rep.kept_columns, "skipped_rows": rep.skipped_rows,
@@ -379,7 +439,8 @@ def main(argv=None) -> int:
     i.add_argument("--db", default=default_db)
     i.add_argument("--sheet")
     i.add_argument("--config")
-    i.add_argument("--force", action="store_true", help="업무가 든 DB 를 .bak-<시각> 으로 옮기고 새로 들여온다")
+    i.add_argument("--force", action="store_true", help="업무가 든 DB 를 .bak-<시각> 으로 옮기고 새로 들여온다 (묻지 않음)")
+    i.add_argument("--ask", action="store_true", help="업무가 든 DB 가 있으면 덮어쓸지 묻는다 (import.bat)")
     e = sub.add_parser("export", help="도구 DB 를 원본 양식 엑셀로 내보낸다")
     e.add_argument("--db", default=default_db)
     e.add_argument("--out")

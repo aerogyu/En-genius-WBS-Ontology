@@ -58,6 +58,7 @@ class WbsServer:
         self._lock = threading.Lock()
         self.write_lock = threading.Lock()          # 저장은 한 번에 하나씩
         self._cache: tuple[int, bytes, dict] | None = None
+        self._stamp = None
         wl = self.cfg.get("windows_login") or {}
         self.win = bool(wl.get("enabled", True)) and winauth.available()
         self.win_domain = winauth.default_domain(wl.get("domain") or None)
@@ -78,7 +79,8 @@ class WbsServer:
         with self._lock:
             with self.connect() as st:
                 rev = _rev(st.db)
-                if self._cache and self._cache[0] == rev:
+                stamp = (rev, st.meta("imported_at"), st.meta("source_sha256"))      # 새로 들여온 DB 면 판 번호가 같아도 다시
+                if self._cache and self._stamp == stamp:
                     return self._cache
                 t0 = time.perf_counter()
                 m = st.model(self.cfg)
@@ -97,6 +99,7 @@ class WbsServer:
             js = ("window.__WBS_DATA__=" + json.dumps(p, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/") + ";").encode("utf-8")
             info = {"rev": rev, "tasks": len(w.tasks), "edges": len(a.edges), "source": p["source"], "seconds": p["server"]["seconds"]}
             self._cache = (rev, js, info)
+            self._stamp = stamp
             return self._cache
 
     # --- 로그인 -------------------------------------------------------------------------------------
@@ -201,7 +204,7 @@ def create_app(db_path: str | Path, cfg_path: str | Path | None = None, title: s
         if err:
             return err
         rev, js, _ = await run_in_threadpool(srv.data)
-        etag = f'"r{rev}-{CODE_TAG}"'
+        etag = f'"r{rev}-{CODE_TAG}-{hashlib.sha256(js).hexdigest()[:8]}"'
         if request.headers.get("if-none-match") == etag:
             return _h(Response(status_code=304, headers={"ETag": etag}), "private, no-cache")
         return _h(Response(js, media_type="text/javascript; charset=utf-8", headers={"ETag": etag}), "private, no-cache")
