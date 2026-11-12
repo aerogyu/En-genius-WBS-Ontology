@@ -19,19 +19,14 @@ from datetime import date
 from .auth import Role
 from .config import nfkc
 from .parse import DEP_RE, parse_deps
+from .rows import EditError, check_cycles, cycle_uids
 from .store import Store, _units
 
 FIELDS = ("duration", "start", "preds", "name", "man_hours")
 LEAF_ONLY = ("duration", "start", "man_hours")
-LABEL = {"duration": "기간(평일)", "start": "시작 하한", "preds": "선행", "name": "이름", "man_hours": "Man Hours"}
+LABEL = {"duration": "기간(평일)", "start": "시작 하한", "preds": "선행", "name": "이름", "man_hours": "Man Hours",
+         "add": "추가", "delete": "삭제", "move": "위치(WBS)", "children": "하위 줄", "ungroup": "풀기"}
 MAX_EDITS = 2000
-
-
-class EditError(ValueError):
-    def __init__(self, kind: str, message: str, items: list | None = None):
-        super().__init__(message)
-        self.kind = kind            # invalid · denied · conflict
-        self.items = items or []
 
 
 def _fmt(v) -> str | None:
@@ -58,6 +53,7 @@ def apply_edits(st: Store, cfg: dict, role: Role, base_rev: int, edits: list[dic
     tasks = m.wbs.tasks
     no_of = {uid: no for no, uid in m.wbs.uids.items()}
     units = _units(cfg)
+    cyc0 = cycle_uids(m)
 
     def module_uid(no: int) -> int:
         while tasks[no].parent is not None:
@@ -114,7 +110,7 @@ def apply_edits(st: Store, cfg: dict, role: Role, base_rev: int, edits: list[dic
     uids = [m.wbs.uids[no] for no, _ in plan]
     q = ",".join("?" * len(uids))
     hit = st.db.execute(f"SELECT DISTINCT c.task_uid, x.id, x.at, x.role FROM change c JOIN txn x ON x.id = c.txn_id "
-                        f"WHERE x.kind = 'edit' AND x.id > ? AND c.task_uid IN ({q}) ORDER BY x.id", (base_rev, *uids)).fetchall()
+                        f"WHERE x.kind IN ('edit', 'rows') AND c.field != 'children' AND x.id > ? AND c.task_uid IN ({q}) ORDER BY x.id", (base_rev, *uids)).fetchall()
     if hit:
         items = [{"uid": r["task_uid"], "no": no_of[r["task_uid"]], "wbs": tasks[no_of[r["task_uid"]]].wbs,
                   "name": tasks[no_of[r["task_uid"]]].name, "txn": r["id"], "at": r["at"], "role": r["role"]} for r in hit]
@@ -167,7 +163,9 @@ def apply_edits(st: Store, cfg: dict, role: Role, base_rev: int, edits: list[dic
         if not n:
             raise EditError("invalid", "바뀐 칸이 없다")
         st.db.execute("UPDATE task SET rev = rev + 1 WHERE uid IN (SELECT DISTINCT task_uid FROM change WHERE txn_id = ?)", (txn,))
-        moved = st.recompute(cfg)
+        m2 = st.model(cfg)
+        check_cycles(cyc0, m2)                                   # 선행이 새 고리를 이루면 거절
+        moved = st.recompute(cfg, m2)
         end_after = st.db.execute("SELECT MAX(finish) FROM task WHERE deleted = 0").fetchone()[0]
         edited = [r[0] for r in st.db.execute("SELECT DISTINCT task_uid FROM change WHERE txn_id = ?", (txn,))]
         st.db.execute("UPDATE txn SET note = ? WHERE id = ?", (json.dumps(

@@ -671,7 +671,10 @@ function edChanges(){const out=[];for(const [no,e] of ED){const t=T.get(no),b={n
   if(e.man_hours!==undefined)out.push({...b,field:"man_hours",from:t.mh0,to:e.man_hours});
   if(e.staff!==undefined)out.push({...b,field:"staff",from:t.staff0,to:e.staff})}return out}
 const EDKEY="wbs-edits:"+(D.server?"server:"+D.source:(D.sha256||D.source));
-function edSave(){try{if(ED.size)localStorage.setItem(EDKEY,JSON.stringify([...ED]));else localStorage.removeItem(EDKEY)}catch(e){}}
+function predsMap(txt,f){return String(txt).split(/[,;]/).map(x=>x.trim()).filter(Boolean).map(tok=>{const m=/^u?(\d+)(.*)$/.exec(tok);if(!m)return tok;const x=f(+m[1]);return x==null?null:x+m[2]}).filter(x=>x!=null).join(",")}
+function edSave(){try{if(!ED.size){localStorage.removeItem(EDKEY);return}
+ const v=D.server?{u:1,items:[...ED].map(([no,e])=>[UID.get(no),e.preds!==undefined?{...e,preds:predsMap(e.preds,n=>UID.has(n)?"u"+UID.get(n):null)}:e])}:[...ED];
+ localStorage.setItem(EDKEY,JSON.stringify(v))}catch(e){}}
 function edChip(){const c=$("edChip");if(!ED.size){c.style.display="none";return}const d=Math.round(SCH.end-SCH0.end);
  c.style.display="";c.textContent=`✎ 가정 편집 ${ED.size}업무 · 완료 ${fDate(SCH.end)} (${d>0?"+":""}${d} 평일)`+(EDLOAD?" · 지난번 것 불러옴":"")}
 $("edChip").onclick=()=>document.querySelector('nav button[data-t="cp"]').click();
@@ -679,10 +682,10 @@ function edForm(no){const t=T.get(no),e=ED.get(no)||{},leaf=!t.kids.length,d0=BA
  let h=`<h3>✎ 가정 편집 <span class="mut">${ED.has(no)?"고침":""}</span></h3><table class="ed">`;
  if(leaf)h+=`<tr><td>기간</td><td><input type="number" id="edDur" min="0" step="1" value="${e.duration??d0??""}"> 평일 <span class="mut">원래 ${d0??"-"}</span></td></tr>
   <tr><td>시작</td><td><input type="date" id="edSt" value="${e.start||""}"> 이후 <span class="mut">비우면 선행을 따름</span></td></tr>`;
- h+=`<tr><td>선행</td><td><input type="text" id="edPre" value="${esc(depsText(no))}" title="MS Project 표기 — 12,15SS+5일,20FF"></td></tr><tr><td>이름</td><td><input type="text" id="edNm" value="${esc(e.name??t.name0)}"></td></tr>`;
+ h+=`<tr><td>선행</td><td><input type="text" id="edPre" value="${esc(depsText(no))}" title="MS Project 표기 — 12,15SS+5일,20FF"> <button class="eb" data-pick="edPre" title="이름·WBS 코드·번호로 찾아 넣기">고르기</button><div id="pick_edPre"></div></td></tr><tr><td>이름</td><td><input type="text" id="edNm" value="${esc(e.name??t.name0)}"></td></tr>`;
  if(leaf)h+=`<tr><td>Man Hours</td><td><input type="number" id="edMh" min="0" value="${e.man_hours!==undefined?(e.man_hours??""):(t.mh0??"")}"></td></tr>`;
- h+=`</table><button class="eb pri" id="edApply">적용 → 다시 계산</button>${ED.has(no)?'<button class="eb" id="edUndo">이 업무 되돌리기</button>':""}<div id="edMsg" class="mut" style="font-size:12px">${D.server?(SRV.can(no)?"적용하면 미리 보기 — ④ 주경로 탭에서 '서버에 저장'":"내 모듈이 아니라 미리 보기만 (저장 불가 — 수정 요청은 다음 단계)"):"날짜는 '간격 유지' 규칙으로 다시 짬 — ④ 주경로 탭에서 변경 목록 내려받기"}</div>`;return h}
-function bindEdForm(no){const ap=$("edApply");if(!ap)return;const t=T.get(no),leaf=!t.kids.length;
+ h+=`</table><button class="eb pri" id="edApply">적용 → 다시 계산</button>${ED.has(no)?'<button class="eb" id="edUndo">이 업무 되돌리기</button>':""}<div id="edMsg" class="mut" style="font-size:12px">${D.server?(SRV.can(no)?"적용하면 미리 보기 — ④ 주경로 탭에서 '서버에 저장'":"내 모듈이 아니라 미리 보기만 (저장 불가 — 수정 요청은 다음 단계)"):"날짜는 '간격 유지' 규칙으로 다시 짬 — ④ 주경로 탭에서 변경 목록 내려받기"}</div>`+ROWS.box(no);return h}
+function bindEdForm(no){PICK.bind($("side"));ROWS.bind(no);const ap=$("edApply");if(!ap)return;const t=T.get(no),leaf=!t.kids.length;
  ap.onclick=()=>{const e={},msg=$("edMsg"),err=m=>{msg.innerHTML=`<span class="err">${esc(m)}</span>`};
   if(leaf){const dv=$("edDur").value.trim(),d0=Math.round((BASE.val.get(2*no+1)-BASE.val.get(2*no))*1000)/1000;if(dv!==""){const d=+dv;if(!(d>=0))return err("기간은 0 이상 숫자");if(BASE.val.has(2*no)&&Math.abs(d-d0)>1e-9)e.duration=d;else if(!BASE.val.has(2*no))return err("날짜가 없는 업무는 기간을 다시 짤 수 없음")}
    const sv=$("edSt").value;if(sv)e.start=sv;const mv=$("edMh").value.trim(),m=mv===""?null:+mv;if(mv!==""&&!(m>=0))return err("Man Hours 는 0 이상 숫자");if(m!==(t.mh0??null))e.man_hours=m}
@@ -728,8 +731,70 @@ const SRV={role:window.__WBS_ROLE__||{kind:"viewer",module_uid:null},hist:null,
    if(x.changes.length>12)s+=`<div class="mut" style="font-size:12px;padding-left:10px">… 외 ${x.changes.length-12}칸</div>`;s+=`</div>`}
   el.innerHTML=s;el.querySelectorAll(".lnk").forEach(a=>a.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+a.dataset.n)})},
  bind(){const b=$("srvSave");if(b)b.onclick=()=>this.save();this.loadHist()}};
+// ---- v0.5 S4 줄 편집 — 한 번에 하나: 미리 계산(서버가 실제로 해 보고 되돌림) → 확인 → 저장 → 새로 불러옴 ----
+const ROWS={
+ box(no){if(!D.server||SRV.role.kind==="viewer")return "";const t=T.get(no),leaf=!t.kids.length;
+  const b=(op,lab,tip)=>`<button class="eb" data-op="${op}" title="${tip}">${lab}</button>`;
+  return `<h3>줄 편집 <span class="mut" style="font-weight:normal;font-size:12px">한 번에 하나 · 확인 뒤 바로 저장</span></h3><div class="rowops">`+
+   b("add","＋ 아래에 추가","같은 레벨, 이 업무 바로 아래")+b("child","＋ 하위 추가","이 업무 아래 맨 뒤")+b("up","▲ 위로","같은 묶음 안에서 한 칸")+b("down","▼ 아래로","같은 묶음 안에서 한 칸")+
+   b("indent","→ 들여쓰기","바로 위 업무의 하위로")+b("outdent","← 내어쓰기","부모와 같은 레벨로 (부모 바로 아래)")+(leaf?"":b("ungroup","풀기","이 요약 줄만 없애고 아래를 한 레벨 올림 — 걸린 선행은 아래 업무로 옮김"))+
+   b("delete","✕ 삭제","지움 표시 (요약이면 아래 전부) — 이력에 남음")+`</div><div id="rowArea" style="font-size:12px"></div>`},
+ bind(no){document.querySelectorAll("#side .rowops [data-op]").forEach(x=>x.onclick=()=>this.start(no,x.dataset.op))},
+ start(no,op){const a=$("rowArea"),t=T.get(no);
+  if(ED.size){a.innerHTML=`<span class="err">저장 안 한 가정 편집 ${ED.size}업무가 있습니다 — 줄 편집은 번호를 바꾸므로 먼저 ④ 주경로 탭에서 저장하거나 되돌리세요.</span>`;return}
+  const goto=(op==="delete"||op==="ungroup")?(t.par!=null?UID.get(t.par):null):UID.get(no);
+  if(op==="add"||op==="child"){
+   a.innerHTML=`<table class="ed"><tr><td>이름</td><td><input type="text" id="rwNm"></td></tr><tr><td>기간</td><td><input type="number" id="rwDur" min="0" step="1" value="5"> 평일 <span class="mut">0 = 마일스톤</span></td></tr>
+    <tr><td>시작</td><td><input type="date" id="rwSt" value="${t.st||""}"> 이후</td></tr><tr><td>선행</td><td><input type="text" id="rwPre" placeholder="예: ${no}"> <button class="eb" data-pick="rwPre">고르기</button><div id="pick_rwPre"></div></td></tr></table>
+    <button class="eb pri" id="rwGo">미리 계산</button><button class="eb" id="rwNo">취소</button><div id="rwMsg"></div>`;
+   PICK.bind(a);$("rwNo").onclick=()=>{a.innerHTML=""};
+   $("rwGo").onclick=()=>{const nm=$("rwNm").value.trim(),dv=$("rwDur").value.trim(),m=$("rwMsg");if(!nm){m.innerHTML='<span class="err">이름을 적으세요</span>';return}
+    if(dv===""||!(+dv>=0)){m.innerHTML='<span class="err">기간은 0 이상 숫자</span>';return}
+    const o={op:"add",where:op==="child"?"child":"after",uid:UID.get(no),name:nm,duration:+dv,preds:$("rwPre").value.trim()};if($("rwSt").value)o.start=$("rwSt").value;
+    this.run(o,m,null)};$("rwNm").focus();return}
+  this.run({op,uid:UID.get(no)},a,goto)},
+ async call(o,dry){const r=await fetch("api/rows",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({base_rev:D.server.rev,dry_run:dry,op:o})});
+  return [r,await r.json().catch(()=>({error:"서버 응답을 읽지 못함"}))]},
+ fail(el,r,j){const items=(j.items||[]).slice(0,8).map(i=>`${i.no??"-"} ${esc(i.wbs||"")} ${esc(i.name||"")}${i.role?` (${esc(i.role)} ${esc(i.at||"")})`:""}`).join("<br>");
+  el.innerHTML=`<span class="err">${esc(j.error||("실패 "+r.status))}</span>`+(items?`<div>${items}${(j.items||[]).length>8?" …":""}</div>`:"")+(r.status===409?"<div>새로 고친 뒤 다시 하세요.</div>":"")},
+ async run(o,el,goto){el.innerHTML="계산 중…";let r,j;try{[r,j]=await this.call(o,true)}catch(e){el.innerHTML='<span class="err">서버에 닿지 못함</span>';return}
+  if(!r.ok)return this.fail(el,r,j);
+  const dd=(j.end_before&&j.end_after)?Math.round((Date.parse(j.end_after)-Date.parse(j.end_before))/864e5):0;
+  el.innerHTML=`<div class="edbox"><b>${esc(j.op_ko)} — 저장하면</b><div>번호가 바뀌는 업무 ${j.renumbered.toLocaleString()} · 날짜가 바뀌는 업무 ${j.moved.toLocaleString()}`+
+   (j.moved_other?` (<b>다른 모듈 ${j.moved_other.toLocaleString()}</b>)`:"")+(j.deleted?` · 지우는 줄 ${j.deleted}`:"")+
+   ` · 사업 완료 ${esc(j.end_before||"-")} → <b>${esc(j.end_after||"-")}</b>${dd?` (${dd>0?"+":""}${dd}일)`:""}</div>`+
+   (j.wbs?`<div class="mut">저장 뒤 이 업무: ${j.no} · ${esc(j.wbs)}</div>`:"")+j.warnings.map(w=>`<div class="err">${esc(w)}</div>`).join("")+
+   `<button class="pri" id="rwOk">저장</button><button id="rwCancel">취소</button></div>`;
+  $("rwCancel").onclick=()=>{el.innerHTML=""};
+  $("rwOk").onclick=async()=>{$("rwOk").disabled=true;try{[r,j]=await this.call(o,false)}catch(e){el.innerHTML='<span class="err">서버에 닿지 못함</span>';return}
+   if(!r.ok)return this.fail(el,r,j);
+   try{const g=goto??j.uid;if(g!=null)sessionStorage.setItem("wbs-goto-uid",String(g))}catch(e){}
+   el.innerHTML=`저장됨 (판 #${j.rev}) — 새로 불러옴`;setTimeout(()=>location.reload(),500)}}};
+// 선행 고르기 — 이름·WBS 코드·번호로 찾아 관계·지연과 함께 선행 칸에 MS Project 표기로 넣는다 (서버·독립 HTML 공통)
+const PICK={
+ bind(root){root.querySelectorAll("[data-pick]").forEach(b=>b.onclick=()=>this.open(b.dataset.pick))},
+ open(id){const box=$("pick_"+id);if(!box)return;if(box.innerHTML){box.innerHTML="";return}
+  const mods=[...T.values()].filter(t=>t.lv===1);
+  box.innerHTML=`<div class="edbox"><input type="text" id="pq_${id}" placeholder="이름 · WBS 코드 · 번호" style="width:60%"> <select id="pm_${id}"><option value="">모든 모듈</option>${mods.map(t=>`<option value="${t.no}">${esc(t.name)}</option>`).join("")}</select>
+   <div>관계 <select id="pt_${id}"><option value="FS">FS 끝→시작</option><option value="SS">SS 시작→시작</option><option value="FF">FF 끝→끝</option><option value="SF">SF 시작→끝</option></select>
+   지연 <input type="number" id="pl_${id}" value="0" step="1" style="width:4.5em"> 일</div><div id="pr_${id}" style="max-height:220px;overflow:auto"></div></div>`;
+  const go=()=>this.list(id);$("pq_"+id).oninput=go;$("pm_"+id).onchange=go;$("pq_"+id).focus()},
+ list(id){const s=$("pq_"+id).value.normalize("NFKC").trim().toLowerCase(),m=+$("pm_"+id).value||0,out=$("pr_"+id);if(!s){out.innerHTML="";return}
+  const hits=[];for(const t of T.values()){if(m&&SRV.lv1(t.no)!==m)continue;
+   if(String(t.no)===s||String(t.wbs).startsWith(s)||t.name.normalize("NFKC").toLowerCase().includes(s)){hits.push(t);if(hits.length>=40)break}}
+  out.innerHTML=hits.map(t=>`<div class="it" style="display:block;cursor:pointer" data-p="${t.no}"><b>${t.no}</b> · ${esc(t.wbs)} · ${esc(t.name)} <span class="mut">Lv${t.lv} · ${esc(T.get(SRV.lv1(t.no)).name)}${t.st?" · "+t.st+" ~ "+t.fi:""}</span></div>`).join("")||'<span class="mut">없음</span>';
+  out.querySelectorAll("[data-p]").forEach(x=>x.onclick=()=>{const ty=$("pt_"+id).value,lg=Math.round(+$("pl_"+id).value||0),
+    tok=x.dataset.p+(ty==="FS"&&!lg?"":ty)+(lg?(lg>0?"+":"")+lg+"일":""),inp=$(id),cur=inp.value.trim().replace(/[,;]\s*$/,"");
+   inp.value=cur?cur+","+tok:tok;out.innerHTML=`<span class="mut">넣음: ${esc(tok)} — 더 찾거나, 위 ‘적용’·‘미리 계산’ 을 누르세요</span>`})}};
+// 줄 편집 저장 뒤 새로 불러오면 그 업무(지웠으면 부모)를 다시 고른다
+if(D.server)try{const g=sessionStorage.getItem("wbs-goto-uid");if(g){sessionStorage.removeItem("wbs-goto-uid");const no=[...UID].find(([n,u])=>u===+g)?.[0];
+ if(no!=null)setTimeout(()=>{try{goTask(no)}catch(e){}},300)}}catch(e){}
 // 지난번 편집 불러오기 (이 원본 판에서 만든 것만)
-try{const sv=JSON.parse(localStorage.getItem(EDKEY)||"null");if(Array.isArray(sv)&&sv.length){for(const [no,e] of sv)if(T.has(no))ED.set(no,e);EDLOAD=ED.size;if(ED.size)edRecompute()}}catch(e){}
+try{const sv=JSON.parse(localStorage.getItem(EDKEY)||"null");
+ if(sv&&sv.u&&D.server){const NO=new Map([...UID].map(([n,u])=>[u,n]));for(const [u,e] of sv.items){const no=NO.get(u);if(no==null)continue;
+   if(e.preds!==undefined)e.preds=predsMap(e.preds,x=>NO.get(x)??null);ED.set(no,e)}}
+ else if(Array.isArray(sv)&&!D.server)for(const [no,e] of sv)if(T.has(no))ED.set(no,e);
+ EDLOAD=ED.size;if(ED.size)edRecompute()}catch(e){}
 // ---- ④ 주경로 — 날짜 기준 총 여유. 무엇이 사업 완료를 쥐고 있나 (파이썬 schedule.py 와 같은 계산) ----
 function cpDrive(no){return (PRE.get(no)||[]).filter(e=>{const g=SCH.gaps[e.i];return g!=null&&g<=1e-6})}
 const cpWd=no=>SCH.val.get(2*no+1)-SCH.val.get(2*no);

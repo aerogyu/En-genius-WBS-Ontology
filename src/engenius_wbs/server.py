@@ -29,6 +29,7 @@ from . import auth, winauth
 from .analyze import analyze
 from .config import load_config
 from .edit import EditError, apply_edits, history
+from .rows import apply_row_op
 from .store import Store
 from .viz import TEMPLATE, payload
 
@@ -323,6 +324,29 @@ def create_app(db_path: str | Path, cfg_path: str | Path | None = None, title: s
             return _h(JSONResponse({"error": str(e), "kind": e.kind, "items": e.items}, status_code=code))
         return _h(JSONResponse(res))
 
+    async def rows_op(request: Request):
+        """줄 동작 하나 (S4) — dry_run 이면 계산만 하고 되돌림 (확인 창 숫자)."""
+        role, err = await need(request)
+        if err:
+            return err
+        if not request.headers.get("content-type", "").startswith("application/json"):
+            return _h(JSONResponse({"error": "JSON 으로 보낼 것"}, status_code=415))
+        try:
+            body = json.loads((await request.body())[:200_000] or b"{}")
+            base, op, dry = int(body.get("base_rev", -1)), body.get("op"), bool(body.get("dry_run"))
+        except (ValueError, TypeError, AttributeError):
+            return _h(JSONResponse({"error": "요청을 읽지 못함"}, status_code=400))
+
+        def run():
+            with srv.write_lock, srv.connect() as st:
+                return apply_row_op(st, srv.cfg, role, base, op, dry)
+        try:
+            res = await run_in_threadpool(run)
+        except EditError as e:
+            code = {"denied": 403, "conflict": 409}.get(e.kind, 400)
+            return _h(JSONResponse({"error": str(e), "kind": e.kind, "items": e.items}, status_code=code))
+        return _h(JSONResponse(res))
+
     async def hist(request: Request):
         _, err = await need(request)
         if err:
@@ -341,7 +365,7 @@ def create_app(db_path: str | Path, cfg_path: str | Path | None = None, title: s
     app = Starlette(routes=[
         Route("/", index), Route("/data.js", data_js), Route("/login", login, methods=["GET", "POST"]),
         Route("/logout", logout, methods=["POST"]), Route("/api/status", status), Route("/api/roles", roles),
-        Route("/export.xlsx", export), Route("/api/save", save, methods=["POST"]), Route("/api/history", hist),
+        Route("/export.xlsx", export), Route("/api/save", save, methods=["POST"]), Route("/api/rows", rows_op, methods=["POST"]), Route("/api/history", hist),
     ])
     app.state.wbs = srv
     return app
