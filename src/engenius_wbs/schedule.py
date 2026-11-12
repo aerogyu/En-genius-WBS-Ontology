@@ -275,3 +275,95 @@ def reschedule(tasks, edges, val0: dict[int, float], dur: dict[int, float] | Non
         elif 2 * t.no in val0:
             val[2 * t.no], val[2 * t.no + 1] = val0[2 * t.no], val0[2 * t.no + 1]
     return val
+
+
+# --- v0.5 저장소: 앞으로 짜기 (정본 = 도구 DB) -----------------------------------------------------------
+# reschedule 은 '원래 날짜'를 기준으로 간격을 유지한다 (엑셀이 정본일 때). 정본이 DB 가 되면 기준을 값으로 굳혀 둔다:
+#   하위 업무 시작 = max(시작 하한 floor, 선행·위 묶음이 요구하는 날짜) · 완료 = 시작 + 일하는 평일 수 work · 요약 = 하위 범위.
+#   선행 요구 = 선행 쪽 사건 + 지연 − 느슨함 relax (들여올 때 이미 어겨 있던 만큼 — 고치지 않으면 안 움직이게).
+#   하한도 요구도 없으면 저장된 날짜 그대로. 단위(L·C·R·F)·순환 간선 빼기·요약으로 들어오는 FF/SF 무시는 reschedule 과 같다.
+#   요약의 C 에는 하한이 없다 (reschedule 은 요약의 원래 시작을 하한처럼 썼다) — 당겨지는 경우에만 결과가 다를 수 있다.
+
+def forward(tasks, edges, val0: dict[int, float], floor: dict[int, float], work: dict[int, float],
+            relax: list[float] | None = None) -> tuple[dict[int, float], dict[int, float]]:
+    """val0 = 저장된 날짜의 사건 값 (계산에 낄 업무·기본값). floor = {하위 업무: 시작 하한}, work = {하위 업무: 일하는 평일 수},
+    relax = edges 와 같은 순서의 느슨함. → (새 사건 값, {하위 업무: 선행·위 묶음 요구의 최대})."""
+    from .analyze import tarjan, topo
+
+    def leaf(no):
+        return not tasks[no].children
+
+    def d_of(no):
+        return work.get(no, val0[2 * no + 1] - val0[2 * no])
+
+    ins: dict[tuple, list] = {}
+    outs: dict[tuple, list] = {}
+
+    def link(src, a, dst, w, to_f):
+        ins.setdefault(dst, []).append((src, a, w, to_f))
+        outs.setdefault(src, []).append(dst)
+
+    for i, e in enumerate(edges):
+        p, s = e.pred, e.succ
+        a, b = ends(e.type)
+        if 2 * p + a not in val0 or 2 * s + b not in val0:
+            continue
+        w = (e.lag_days or 0.0) - (relax[i] if relax else 0.0)
+        src = ("L", p) if leaf(p) else (("R", p) if a == 0 else ("F", p))
+        if leaf(s):
+            link(src, a, ("L", s), w, b == 1)
+        elif b == 0:
+            link(src, a, ("C", s), w, False)
+    for t in tasks.values():
+        if not t.children or 2 * t.no not in val0:
+            continue
+        for c in t.children:
+            if 2 * c not in val0:
+                continue
+            link(("C", t.no), 0, ("L", c) if leaf(c) else ("C", c), 0.0, False)
+            link(("L", c) if leaf(c) else ("R", c), 0, ("R", t.no), 0.0, False)
+            link(("L", c) if leaf(c) else ("F", c), 1, ("F", t.no), 0.0, False)
+    units = sorted(set(ins) | set(outs) | {("L", t.no) for t in tasks.values() if not t.children and 2 * t.no in val0})
+    comps = tarjan(units, outs)
+    comp_of = {u: i for i, c in enumerate(comps) for u in c}
+    order = topo(units, {u: [v for v in outs.get(u, ()) if comp_of[u] != comp_of[v]] for u in units})
+    nv: dict[tuple, float | None] = {}
+    need: dict[int, float] = {}
+
+    def src_val(u, a):
+        if u[0] == "L":
+            return nv[u] + (d_of(u[1]) if a == 1 else 0.0)
+        return nv.get(u)
+
+    for u in order:
+        kind, no = u
+        vals = [(src_val(src, a), w, to_f) for src, a, w, to_f in ins.get(u, ()) if comp_of[src] != comp_of[u]]
+        vals = [x for x in vals if x[0] is not None]
+        if kind in ("R", "F"):
+            ks = [v for v, _, _ in vals]
+            nv[u] = (min(ks) if kind == "R" else max(ks)) if ks else val0[2 * no + (kind == "F")]
+            continue
+        reqs = [v + w - (d_of(no) if to_f else 0.0) for v, w, to_f in vals]
+        if kind == "C":
+            nv[u] = max(reqs) if reqs else None
+            continue
+        if reqs:
+            need[no] = max(reqs)
+        fl = floor.get(no)
+        cand = reqs + ([fl] if fl is not None else [])
+        nv[u] = max(cand) if cand else val0[2 * no]
+    val = {}
+    for t in tasks.values():
+        if not t.children and ("L", t.no) in nv:
+            s = nv[("L", t.no)]
+            val[2 * t.no], val[2 * t.no + 1] = s, s + d_of(t.no)
+    for t in sorted(tasks.values(), key=lambda x: -x.level):
+        if not t.children:
+            continue
+        ss = [val[2 * c] for c in t.children if 2 * c in val]
+        if ss:
+            val[2 * t.no] = min(ss)
+            val[2 * t.no + 1] = max(val[2 * c + 1] for c in t.children if 2 * c + 1 in val)
+        elif 2 * t.no in val0:
+            val[2 * t.no], val[2 * t.no + 1] = val0[2 * t.no], val0[2 * t.no + 1]
+    return val, need

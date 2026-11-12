@@ -114,6 +114,7 @@ class Wbs:
     issues: list[Issue]
     columns: dict[str, str]        # 칸 key → 찾은 헤더 문구
     skipped_columns: list[str]     # 읽지 않은 헤더 (인명 칸 포함)
+    uids: dict[int, int] = field(default_factory=dict)   # 번호 → 고유 ID (도구 DB 에서 읽었을 때만, store.py)
 
 
 # --- 값 읽기 -------------------------------------------------------------------------------------

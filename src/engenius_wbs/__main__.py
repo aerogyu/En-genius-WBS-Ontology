@@ -6,6 +6,10 @@
         → 가짜 WBS 엑셀 (실데이터 없이 시험할 때)
     apply <원본 WBS.xlsx> <변경 목록.json> [--out 폴더] [--config wbs.yaml] [--force] [--no-build]
         → <원본>_수정_v01.xlsx (원본 형식 그대로, 원본은 안 건드림) + .changes.json, 이어서 그 파일로 build
+    import <WBS.xlsx> [--db data/real/wbs.db] [--sheet 이름] [--config wbs.yaml] [--force]
+        → 도구 DB (SQLite 파일 하나, v0.5 S1). 업무마다 고유 ID. 원본과 달라지는 칸은 <db>.import_notes.json 에
+    export [--db data/real/wbs.db] [--out 파일.xlsx] [--config wbs.yaml]
+        → DB 를 원본 양식 엑셀로 (기본 output/<시각>/)
 """
 from __future__ import annotations
 
@@ -105,6 +109,89 @@ def cmd_apply(a) -> int:
     return cmd_build(b)
 
 
+COL_KO = {"row_no": "번호", "wbs": "WBS", "name": "이름", "duration": "기간", "start": "시작", "finish": "완료", "preds": "선행", "succs": "후속",
+          "staff": "투입인력", "man_hours": "Man Hours", "deliverable": "산출물"}
+
+
+def cmd_import(a) -> int:
+    from .store import Store
+
+    src, db = Path(a.xlsx), Path(a.db)
+    if not src.exists():
+        print(f"[NG] 파일이 없다: {src}")
+        return 2
+    cfg = load_config(a.config)
+    if db.exists():
+        with Store(db) as st:
+            n = st.count()
+        if n and not a.force:
+            print(f"[NG] 이미 업무 {n:,}개가 들어 있는 DB 다: {db}")
+            print("     다른 --db 를 주거나, 새로 들여오려면 --force (옛 DB 는 .bak-<시각> 으로 이름을 바꿔 남긴다)")
+            return 2
+        bak = db.with_name(f"{db.name}.bak-{datetime.now().strftime('%Y%m%dT%H%M%S')}")
+        db.rename(bak)
+        if n:
+            print(f"[import] 옛 DB → {bak.name}")
+        else:
+            bak.unlink()
+    t0 = time.perf_counter()
+    try:
+        with Store(db) as st:
+            rep = st.import_xlsx(src, cfg, a.sheet)
+            notes = [dict(r) for r in st.db.execute(
+                "SELECT n.task_uid AS uid, t.src_no AS no, t.src_row AS excel_row, n.col, n.old, n.new FROM note n JOIN task t ON t.uid = n.task_uid ORDER BY n.id")]
+    except ValueError as e:
+        print(f"[NG] {e}")
+        if db.exists() and not db.stat().st_size:
+            db.unlink()
+        return 2
+    out = db.with_name(db.stem + ".import_notes.json")
+    out.write_text(json.dumps({"source": src.name, "db": db.name, "tasks": rep.tasks, "deps": rep.deps, "moved": rep.moved,
+                               "dropped_columns": rep.dropped_columns, "kept_columns": rep.kept_columns, "skipped_rows": rep.skipped_rows,
+                               "notes": notes}, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n")
+    print(f"[import] 업무 {rep.tasks:,} · 선행 {rep.deps:,} → {db}  ({time.perf_counter() - t0:.1f}초)")
+    print(f"  · 날짜가 움직인 하위 업무 {rep.moved} (0 이어야 한다) — 시작 하한 {rep.floors:,} · 느슨하게 둔 선행 {rep.relaxed:,}")
+    if rep.notes:
+        print("  · 원본과 달라진 칸: " + " · ".join(f"{COL_KO.get(k, k)} {v}" for k, v in rep.notes.items()) + f"  → {out.name}")
+    else:
+        print("  · 원본과 달라진 칸 없음")
+    if rep.dropped_columns:
+        print("  · 버린 칸 (설정 keep_columns 에 헤더를 적으면 값 그대로 보관): " + " · ".join(f"{h}({n})" for h, n in rep.dropped_columns.items()))
+    if rep.kept_columns:
+        print("  · 그대로 보관한 칸: " + " · ".join(rep.kept_columns))
+    print(f"  · 인명 칸 {rep.person_columns}개는 읽지 않음 (내보낼 때 빈 칸)"
+          + (f" · 읽지 못한 행 {rep.skipped_rows}" if rep.skipped_rows else "")
+          + (f" · 헤더 위 글자 {rep.cleared_top_cells}칸은 서식 틀에서 지움" if rep.cleared_top_cells else ""))
+    if rep.moved:
+        print("[NG] 날짜가 움직였다 — 이 DB 는 쓰지 말고 알려 줄 것")
+        return 1
+    return 0
+
+
+def cmd_export(a) -> int:
+    from .store import Store
+
+    db = Path(a.db)
+    if not db.exists():
+        print(f"[NG] DB 가 없다: {db}  (먼저 import)")
+        return 2
+    cfg = load_config(a.config)
+    t0 = time.perf_counter()
+    with Store(db) as st:
+        if not st.count():
+            print(f"[NG] 업무가 없는 DB 다: {db}")
+            return 2
+        stem = Path(st.meta("source_name", "wbs.xlsx")).stem
+        out = Path(a.out) if a.out else REPO_ROOT / "output" / datetime.now().strftime("%Y%m%dT%H%M%S") / f"{stem}_export.xlsx"
+        if out.exists():
+            print(f"[NG] 이미 있는 파일은 덮어쓰지 않는다: {out}")
+            return 2
+        st.export_xlsx(out, cfg)
+        n = st.count()
+    print(f"[export] 업무 {n:,} → {out}  ({time.perf_counter() - t0:.1f}초)")
+    return 0
+
+
 def cmd_synth(a) -> int:
     from .synth import generate
     out = Path(a.out)
@@ -136,8 +223,19 @@ def main(argv=None) -> int:
     p.add_argument("--config")
     p.add_argument("--force", action="store_true", help="원본 sha256 이 달라도 적용")
     p.add_argument("--no-build", action="store_true", help="새 엑셀로 build 하지 않음")
+    default_db = str(REPO_ROOT / "data" / "real" / "wbs.db")
+    i = sub.add_parser("import", help="WBS 엑셀을 도구 DB 로 들여온다 (v0.5 S1)")
+    i.add_argument("xlsx")
+    i.add_argument("--db", default=default_db)
+    i.add_argument("--sheet")
+    i.add_argument("--config")
+    i.add_argument("--force", action="store_true", help="업무가 든 DB 를 .bak-<시각> 으로 옮기고 새로 들여온다")
+    e = sub.add_parser("export", help="도구 DB 를 원본 양식 엑셀로 내보낸다")
+    e.add_argument("--db", default=default_db)
+    e.add_argument("--out")
+    e.add_argument("--config")
     a = ap.parse_args(argv)
-    return {"build": cmd_build, "synth": cmd_synth, "apply": cmd_apply}[a.cmd](a)
+    return {"build": cmd_build, "synth": cmd_synth, "apply": cmd_apply, "import": cmd_import, "export": cmd_export}[a.cmd](a)
 
 
 if __name__ == "__main__":

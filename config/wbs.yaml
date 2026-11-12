@@ -18,6 +18,9 @@ columns:
   deliverable: ["산출물"]
 # 읽지 않는 칸 (인명) — 헤더가 이 이름이면 값을 보지도 않는다. 위 columns 에 없는 다른 칸도 읽지 않는다.
 person_columns: ["작성자", "담당자", "담당", "작성", "리소스 이름", "Resource Names"]
+# 도구 DB 로 들여올 때(import) 값 그대로 보관했다가 내보낼 칸의 헤더 — 위 columns·person_columns 에 없는 칸은 여기 적지 않으면 버린다.
+# 인명이 든 칸은 적지 않는다.
+keep_columns: []
 required: [row_no, wbs, name]
 
 # 레벨 이름 (WBS 코드 마디 수 = 레벨). 6 보다 깊으면 '하위 업무(Lv7+)'.
