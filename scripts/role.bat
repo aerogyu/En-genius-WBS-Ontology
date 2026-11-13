@@ -4,6 +4,7 @@ rem   scripts\role.bat add admin1 --label "Admin 1" --kind admin
 rem   scripts\role.bat add fan --label "FAN leader" --kind leader --module <Lv1 name or WBS code>
 rem   scripts\role.bat add view --label "Viewer" --kind viewer
 rem   scripts\role.bat passwd fan  /  off fan  /  on fan  /  list
+rem   scripts\role.bat remove amdin2   (only a role never used, e.g. a typo - a used role: off)
 rem   Labels are what the history shows: use role names, never a person's name.
 rem This .bat is ASCII-only on purpose: cmd reads .bat files as cp949 on Korean Windows.
 setlocal

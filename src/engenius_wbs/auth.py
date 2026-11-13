@@ -157,6 +157,39 @@ def set_active(db: sqlite3.Connection, login: str, active: bool) -> None:
     db.commit()
 
 
+def _used(db: sqlite3.Connection, label: str) -> list[str]:
+    """그 역할 이름이 이력·판·요청에 남아 있는 곳 (이력은 역할 이름 글자로 남으므로 — 지우면 같은 이름이 다시 생길 수 있다)."""
+    have = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    where = []
+    for table, cols, what in (("txn", ("role",), "저장 이력"), ("snapshot", ("role",), "판 확정"),
+                              ("request", ("from_role", "closed_role"), "수정 요청")):
+        if table in have:
+            n = db.execute(f"SELECT COUNT(*) FROM {table} WHERE " + " OR ".join(f"{c} = ?" for c in cols), (label,) * len(cols)).fetchone()[0]
+            if n:
+                where.append(f"{what} {n}건")
+    return where
+
+
+def remove_role(db: sqlite3.Connection, login: str) -> str:
+    """역할 지우기 — 오타처럼 **한 번도 쓰지 않은** 역할만. 쓴 역할은 `off` 로 끈다 (이력의 역할 이름이 이어지게)."""
+    ensure(db)
+    r = db.execute("SELECT * FROM role WHERE login = ?", (login,)).fetchone()
+    if not r:
+        raise ValueError(f"없는 로그인 ID: {login}")
+    if r["login"] == WIN_VIEWER_LOGIN:
+        raise ValueError("공용 조회자 역할은 지울 수 없다 — 끄려면 role off _windows")
+    used = _used(db, r["label"])
+    if used:
+        raise ValueError(f"'{r['label']}' 은 이미 쓴 역할이다 ({' · '.join(used)}) — 지우지 않고 끈다: role off {r['login']}")
+    n = db.execute("SELECT COUNT(*) FROM account WHERE role_id = ?", (r["id"],)).fetchone()[0]
+    if n:
+        raise ValueError(f"이 역할에 Windows 계정 {n}개가 연결돼 있다 — account list 로 보고 account remove 로 먼저 푼다")
+    db.execute("DELETE FROM session WHERE role_id = ?", (r["id"],))
+    db.execute("DELETE FROM role WHERE id = ?", (r["id"],))
+    db.commit()
+    return r["label"]
+
+
 def verify(db: sqlite3.Connection, login: str, password: str) -> Role | None:
     ensure(db)
     r = db.execute("SELECT * FROM role WHERE login = ? AND active = 1", (login or "",)).fetchone()

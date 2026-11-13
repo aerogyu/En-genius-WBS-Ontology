@@ -16,6 +16,7 @@
         → 지금 DB 사본 (서버가 켜져 있어도 됨) · 사본 목록 · 사본으로 되돌리기 (서버를 끈 뒤, 옛 DB 는 .bak-<시각>)
     role add <로그인ID> --label 역할이름 --kind admin|leader|viewer [--module Lv1 이름·WBS 코드] [--db]   (비밀번호는 물어봄)
     role list | role passwd <로그인ID> | role off <로그인ID> | role on <로그인ID>
+    role remove <로그인ID>   (한 번도 쓰지 않은 역할만 — 오타 등. 쓴 역할은 off)
         → 역할 계정 (v0.5 S2). 역할 이름만 이력에 남는다 — 사람 이름을 쓰지 않는다
     account set <DOMAIN\\계정> --role <역할 로그인ID> | account list | account remove <DOMAIN\\계정>
         → Windows 계정 → 역할 (서버 DB 에만). 표에 없는 계정은 설정 windows_login.unregistered 에 따라 조회자/거절
@@ -423,6 +424,9 @@ def cmd_role(a) -> int:
                 auth.check_new(a.login, a.label, a.kind, "x" * auth.MIN_PASSWORD)
                 r = auth.add_role(st.db, a.login, a.label, a.kind, _ask_password(), mod)
                 print(f"[role] 만듦: {r.login} — {r.label} ({r.kind_ko})")
+            elif a.action == "remove":
+                label = auth.remove_role(st.db, a.login)
+                print(f"[role] 지움: {a.login} — {label}")
             elif a.action == "passwd":
                 auth.set_password(st.db, a.login, _ask_password())
                 print(f"[role] 비밀번호 바꿈: {a.login} (그 역할의 로그인은 끊김)")
@@ -591,7 +595,8 @@ def main(argv=None) -> int:
     rs.add_argument("--db", default=default_db)
     rs.add_argument("--force", action="store_true", help="묻지 않음")
     r = sub.add_parser("role", help="역할 계정 만들기·보기·비밀번호 (v0.5 S2)")
-    r.add_argument("action", choices=["add", "list", "passwd", "off", "on"])
+    r.add_argument("action", choices=["add", "list", "passwd", "off", "on", "remove"],
+                   help="remove = 한 번도 쓰지 않은 역할(오타 등)만 지움 — 쓴 역할은 off")
     r.add_argument("login", nargs="?")
     r.add_argument("--label", help="역할 이름 (예: 관리자 1, FAN 리더) — 사람 이름 금지")
     r.add_argument("--kind", choices=["admin", "leader", "viewer"])

@@ -161,6 +161,33 @@ def test_role_cli(tmp_path, monkeypatch, capsys):
         assert auth.verify(st.db, "FAN", PW).label == "FAN 리더"      # 로그인 ID 는 대소문자 무시
 
 
+def test_role_remove(tmp_path, monkeypatch, capsys):
+    """오타로 만든 역할은 지운다 — 쓴 역할·계정이 걸린 역할·공용 조회자는 거절 (끄기로)."""
+    db = tmp_path / "wbs.db"
+    with Store(db) as st:
+        st.import_xlsx(make_small(tmp_path / "small.xlsx"), CFG)
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": PW)
+    assert main(["role", "add", "admin1", "--label", "관리자 1", "--kind", "admin", "--db", str(db)]) == 0
+    assert main(["role", "add", "amdin2", "--label", "관리자 2", "--kind", "admin", "--db", str(db)]) == 0
+    with Store(db) as st:
+        tok = auth.new_session(st.db, auth.verify(st.db, "amdin2", PW))
+        st._txn("edit", "관리자 1")                                   # admin1 은 저장한 적이 있다
+        st.db.commit()
+    assert main(["role", "remove", "amdin2", "--db", str(db)]) == 0
+    assert main(["role", "remove", "amdin2", "--db", str(db)]) == 2          # 이미 없음
+    assert main(["role", "remove", "admin1", "--db", str(db)]) == 2          # 쓴 역할 → off 안내
+    assert main(["role", "remove", "_windows", "--db", str(db)]) == 2
+    out = capsys.readouterr().out
+    assert "지움: amdin2 — 관리자 2" in out and "저장 이력 1건" in out and "role off admin1" in out
+    with Store(db) as st:
+        assert auth.session_role(st.db, tok) is None and auth.verify(st.db, "amdin2", PW) is None
+        assert auth.add_role(st.db, "admin2", "관리자 2", "admin", PW).label == "관리자 2"   # 같은 이름으로 다시 만들 수 있다
+        auth.set_account(st.db, "corp\\someone", "admin2")
+    assert main(["role", "remove", "admin2", "--db", str(db)]) == 2          # 계정이 걸려 있음
+    assert main(["account", "remove", "corp\\someone", "--db", str(db)]) == 0
+    assert main(["role", "remove", "admin2", "--db", str(db)]) == 0
+
+
 # --- Windows 계정 로그인 (확인 자체는 가짜로 바꿔 끼운다 — 개발 PC 에서 사내 계정을 쓸 수 없다) -------------------------------
 WIN_PW = "windows-pass-xyz"
 
