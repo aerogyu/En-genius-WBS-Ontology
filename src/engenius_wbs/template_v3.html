@@ -75,9 +75,14 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
 .edbox button,#side button.eb{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:3px 9px;border-radius:6px;cursor:pointer;font:inherit;margin:4px 4px 0 0}.edbox button.pri,#side button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
 #side table.ed input{width:100%}#side table.ed input[type=number]{width:80px}#side table.ed input[type=date]{width:140px}.mv,.gr0 .num.mv{color:var(--acc);font-weight:bold}
 #edChip{cursor:pointer;background:var(--acc);color:#fff}
+#co.on{flex-direction:column;overflow:auto;padding:10px 14px;gap:12px}.cobox{border:1px solid var(--line);border-radius:8px;background:var(--card);padding:8px 12px}
+.cobox h3{margin:0 0 6px;font-size:14px}.cotb{border-collapse:collapse;width:100%}.cotb td,.cotb th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left;font-size:12px;vertical-align:top}.cotb th{color:var(--mut);font-weight:normal}
+.cotb td.n{text-align:right;font-variant-numeric:tabular-nums}.req{border-bottom:1px solid var(--line);padding:6px 0;font-size:12px}.req:last-child{border-bottom:0}
+#co button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:3px 9px;border-radius:6px;cursor:pointer;font:inherit;font-size:12px}#co button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+#co textarea{width:100%;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font:inherit}#co summary{cursor:pointer;margin:4px 0}
 </style></head><body>
 <header><h1>__TITLE__</h1><span class="mut" id="meta"></span></header>
-<nav><button data-t="gr" class="on">① 선후 관계 보기</button><button data-t="is">② 검사</button><button data-t="mh">③ 월별 공수</button><button data-t="cp">④ 주경로</button></nav>
+<nav><button data-t="gr" class="on">① 선후 관계 보기</button><button data-t="is">② 검사</button><button data-t="mh">③ 월별 공수</button><button data-t="cp">④ 주경로</button><button data-t="co" id="coTab" style="display:none" title="수정 요청 · 판 확정·비교 · 모듈별 엑셀 (서버)">⑤ 판·요청</button></nav>
 <section id="gr" class="on">
  <div id="tree"><div class="bar"><input type="text" id="q" placeholder="찾기: 번호 · WBS · 이름 일부"><button id="pickClear" title="트리 체크 모두 해제" style="font:inherit">체크 해제</button></div><div id="hits"></div><div id="treeBody"></div></div>
  <div id="main">
@@ -122,6 +127,7 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
  <div id="cpBody"><div id="cpGrp"></div><div id="cpList"></div></div>
  <div id="cpNote" class="mut">총 여유 = 사업 마지막 완료를 늦추지 않고 이 업무가 밀릴 수 있는 평일 수 — 엑셀에 적힌 날짜를 그대로 놓고 잼 (MS Project 화면과 같은 기준, 휴일·제약 조건 모름 — 근사) · 구동 선행 = 간격 0 이하로 이 업무를 바로 밀고 있는 선행 · <span id="cpInfo"></span></div>
 </section>
+<section id="co"></section>
 <section id="is">
  <div style="margin-bottom:6px">문제 코드 <select id="fIs"></select> <span class="mut" id="isN"></span></div>
  <table id="isT"></table>
@@ -190,7 +196,7 @@ const $=id=>document.getElementById(id);
 const LVNAME={1:"구성품",2:"최상위 업무",3:"개발 단계",4:"기술 분야",5:"상위 기술 업무",6:"하위 기술 업무"};
 const PAL=["#4e79a7","#f28e2b","#59a14f","#e15759","#76b7b2","#edc948","#b07aa1","#ff9da7","#9c755f","#bab0ac","#1f77b4","#2ca02c","#d62728","#9467bd","#8c564b","#17becf"];
 $("meta").textContent=`${D.source} · 업무 ${D.tasks.length.toLocaleString()} · 선행 관계 ${D.edges.length.toLocaleString()} · 순환 ${D.cycles} · 사업 ${D.cp.start||"-"} ~ ${D.cp.end||"-"} · 주경로 ${D.cp.critical} · 문제 ${D.issues.length.toLocaleString()}`;
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));document.querySelectorAll("section").forEach(s=>s.classList.toggle("on",s.id===b.dataset.t));if(b.dataset.t==="mh")renderMH();if(b.dataset.t==="cp")renderCP();if(b.dataset.t==="gr"){keepView=true;draw()}});
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));document.querySelectorAll("section").forEach(s=>s.classList.toggle("on",s.id===b.dataset.t));if(b.dataset.t==="mh")renderMH();if(b.dataset.t==="cp")renderCP();if(b.dataset.t==="co"&&window.COLLAB)COLLAB.render();if(b.dataset.t==="gr"){keepView=true;draw()}});
 function anc(no,lv){let t=T.get(no);while(t&&t.lv>lv&&t.par!=null)t=T.get(t.par);return t?t.no:no}
 function ancExact(no,lv){const a=anc(no,lv);return T.get(a).lv===lv?a:null}
 function path(no){const p=[];let t=T.get(no);while(t){p.unshift(t);t=t.par!=null?T.get(t.par):null}return p}
@@ -686,13 +692,13 @@ function edForm(no){const t=T.get(no),e=ED.get(no)||{},leaf=!t.kids.length,d0=BA
   <tr><td>시작</td><td><input type="date" id="edSt" value="${e.start||""}"> 이후 <span class="mut">비우면 선행을 따름</span></td></tr>`;
  h+=`<tr><td>선행</td><td><input type="text" id="edPre" value="${esc(depsText(no))}" title="MS Project 표기 — 12,15SS+5일,20FF"> <button class="eb" data-pick="edPre" title="이름·WBS 코드·번호로 찾아 넣기">고르기</button><div id="pick_edPre"></div></td></tr><tr><td>이름</td><td><input type="text" id="edNm" value="${esc(e.name??t.name0)}"></td></tr>`;
  if(leaf)h+=`<tr><td>Man Hours</td><td><input type="number" id="edMh" min="0" value="${e.man_hours!==undefined?(e.man_hours??""):(t.mh0??"")}"></td></tr>`;
- h+=`</table><button class="eb pri" id="edApply">적용 → 다시 계산</button>${ED.has(no)?'<button class="eb" id="edUndo">이 업무 되돌리기</button>':""}<div id="edMsg" class="mut" style="font-size:12px">${D.server?(SRV.can(no)?"적용하면 미리 보기 — ④ 주경로 탭에서 '서버에 저장'":"내 모듈이 아니라 미리 보기만 (저장 불가 — 수정 요청은 다음 단계)"):"날짜는 '간격 유지' 규칙으로 다시 짬 — ④ 주경로 탭에서 변경 목록 내려받기"}</div>`+
+ h+=`</table><button class="eb pri" id="edApply">적용 → 다시 계산</button>${ED.has(no)?'<button class="eb" id="edUndo">이 업무 되돌리기</button>':""}<div id="edMsg" class="mut" style="font-size:12px">${D.server?(SRV.can(no)?"적용하면 미리 보기 — ④ 주경로 탭에서 '서버에 저장'":SRV.mine(no)?"편집이 닫혀 있어 미리 보기만 (관리자만 저장)":"내 모듈이 아니라 미리 보기만 (저장 불가 — 아래 ‘수정 요청’)"):"날짜는 '간격 유지' 규칙으로 다시 짬 — ④ 주경로 탭에서 변경 목록 내려받기"}</div>`+
  (D.server&&RLXIN.get(no)?`<div class="edbox" style="font-size:12px">느슨함 <b>${fmtD(RLXIN.get(no))} 평일</b> — 들여올 때 이미 선행을 그만큼 어겨 있어 그대로 둔 것 (C05).
   <button class="eb" id="edRelax">${e.fix_relax?"바로잡기 취소":"바로잡기 → 선행을 따르게"}</button></div>`:"")+ROWS.box(no)+
- (D.server?`<h3>이 업무 이력</h3><div id="taskHist" class="mut" style="font-size:12px">불러오는 중…</div>`:"");return h}
+ (D.server?(window.COLLAB?COLLAB.taskBox(no):"")+`<h3>이 업무 이력</h3><div id="taskHist" class="mut" style="font-size:12px">불러오는 중…</div>`:"");return h}
 function bindEdForm(no){PICK.bind($("side"));ROWS.bind(no);
  const rx=$("edRelax");if(rx)rx.onclick=()=>{const e={...(ED.get(no)||{})};if(e.fix_relax)delete e.fix_relax;else e.fix_relax=true;EDLOAD=0;if(Object.keys(e).length)ED.set(no,e);else ED.delete(no);edRecompute();keepView=true;draw()};
- if(D.server)SRV.taskHist(no);
+ if(D.server){SRV.taskHist(no);if(window.COLLAB)COLLAB.bindTask(no)}
  const ap=$("edApply");if(!ap)return;const t=T.get(no),leaf=!t.kids.length;
  ap.onclick=()=>{const e={},msg=$("edMsg"),err=m=>{msg.innerHTML=`<span class="err">${esc(m)}</span>`};
   if(leaf){const dv=$("edDur").value.trim(),d0=Math.round((BASE.val.get(2*no+1)-BASE.val.get(2*no))*1000)/1000;if(dv!==""){const d=+dv;if(!(d>=0))return err("기간은 0 이상 숫자");if(BASE.val.has(2*no)&&Math.abs(d-d0)>1e-9)e.duration=d;else if(!BASE.val.has(2*no))return err("날짜가 없는 업무는 기간을 다시 짤 수 없음")}
@@ -719,9 +725,12 @@ function edDownload(){const now=new Date(),p=n=>String(n).padStart(2,"0"),stamp=
 // ---- v0.5 서버: 저장 · 권한 · 이력 ----
 const SRV={role:window.__WBS_ROLE__||{kind:"viewer",module_uid:null},hist:null,
  lv1(no){let t=T.get(no);while(t.par!=null&&T.has(t.par))t=T.get(t.par);return t.no},
- can(no){const r=this.role;if(r.kind==="admin")return true;if(r.kind!=="leader")return false;const t=T.get(no);return t.lv!==1&&UID.get(this.lv1(no))===r.module_uid},
+ locked(){return this.role.kind!=="admin"&&(window.__WBS_STATE__||{}).edit_open===false},
+ can(no){return !this.locked()&&this.mine(no)},
+ mine(no){const r=this.role;if(r.kind==="admin")return true;if(r.kind!=="leader")return false;const t=T.get(no);return t.lv!==1&&UID.get(this.lv1(no))===r.module_uid},
  edits(){const out=[];for(const [no,e] of ED){const x={uid:UID.get(no)};for(const k of ["duration","start","preds","name","man_hours","fix_relax"])if(e[k]!==undefined&&!(k==="start"&&!e.start))x[k]=e[k];out.push(x)}return out},
  saveBox(){if(this.role.kind==="viewer")return `<div class="mut" style="font-size:12px;margin:6px 0">조회자는 저장할 수 없습니다 (가정 편집은 이 브라우저에서만).</div>`;
+  if(this.locked()){const nt=(window.__WBS_STATE__||{}).edit_note;return `<div class="err" style="font-size:12px;margin:6px 0">편집이 닫혀 있어 저장할 수 없습니다${nt?" ("+esc(nt)+")":""} — 가정 편집은 이 브라우저에 남습니다. 수정 요청은 ⑤ 탭에서.</div>`}
   const no=[...ED.keys()].filter(n=>!this.can(n));
   return `<div style="margin:6px 0"><button class="pri" id="srvSave"${no.length?" disabled":""}>서버에 저장 (${ED.size}업무)</button> <span id="srvMsg" class="mut" style="font-size:12px">${no.length?`<span class="err">내 모듈이 아닌 업무 ${no.length}개 (${no.slice(0,5).join(", ")}${no.length>5?" …":""}) — 되돌린 뒤 저장</span>`:"저장하면 모든 사람 화면에 반영 · 이력에 역할 이름으로 남음"}</span></div>`},
  histBox(){return `<div class="edbox" id="srvHist"><b>최근 저장</b> <span class="mut" style="font-size:12px">불러오는 중…</span></div>`},
@@ -734,7 +743,8 @@ const SRV={role:window.__WBS_ROLE__||{kind:"viewer",module_uid:null},hist:null,
   catch(e){m.innerHTML=`<span class="err">서버에 닿지 못함</span>`;b.disabled=false}},
  async loadHist(){const el=$("srvHist");if(!el)return;try{if(!this.hist){const r=await fetch("api/history?limit=30",{cache:"no-store"});this.hist=r.ok?await r.json():[]}}catch(e){this.hist=[]}
   const h=this.hist;let s=`<b>최근 저장</b>`;if(!h.length)s+=` <span class="mut" style="font-size:12px">아직 없음</span>`;
-  for(const x of h){const n=x.note||{};s+=`<div class="it" style="display:block"><span class="mut">#${x.txn} ${esc(x.at.replace("T"," "))} · ${esc(x.role)}</span>`+(n.moved!=null?` <span class="mut">· 날짜 바뀐 업무 ${n.moved} · 완료 ${esc(n.end_before||"")} → ${esc(n.end_after||"")}</span>`:"");
+  for(const x of h){const n=x.note||{};s+=`<div class="it" style="display:block"><span class="mut">#${x.txn} ${esc(x.at.replace("T"," "))} · ${esc(x.role)}</span>`+
+   (x.kind==="snapshot"?` <b>판 확정 ‘${esc(n.label||"")}’</b>`:x.kind==="lock"?` <b>${n.open?"편집 열음":"편집 닫음"}</b>${n.note?" "+esc(n.note):""}`:"")+(n.moved!=null?` <span class="mut">· 날짜 바뀐 업무 ${n.moved} · 완료 ${esc(n.end_before||"")} → ${esc(n.end_after||"")}</span>`:"");
    for(const c of x.changes.slice(0,12))s+=`<div style="font-size:12px;padding-left:10px">${c.no!=null?`<span class="lnk" data-n="${c.no}">${c.no}</span> `:""}${esc(c.name)} · ${esc(c.label)} ${esc(c.old??"-")} → ${esc(c.new??"-")}</div>`;
    if(x.changes.length>12)s+=`<div class="mut" style="font-size:12px;padding-left:10px">… 외 ${x.changes.length-12}칸</div>`;s+=`</div>`}
   el.innerHTML=s;el.querySelectorAll(".lnk").forEach(a=>a.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+a.dataset.n)})},
@@ -748,6 +758,7 @@ const SRV={role:window.__WBS_ROLE__||{kind:"viewer",module_uid:null},hist:null,
 // ---- v0.5 S4 줄 편집 — 한 번에 하나: 미리 계산(서버가 실제로 해 보고 되돌림) → 확인 → 저장 → 새로 불러옴 ----
 const ROWS={
  box(no){if(!D.server||SRV.role.kind==="viewer")return "";const t=T.get(no),leaf=!t.kids.length;
+  if(SRV.locked())return `<h3>줄 편집</h3><div class="mut" style="font-size:12px">편집이 닫혀 있습니다 — 관리자만 저장</div>`;
   const b=(op,lab,tip)=>`<button class="eb" data-op="${op}" title="${tip}">${lab}</button>`;
   return `<h3>줄 편집 <span class="mut" style="font-weight:normal;font-size:12px">한 번에 하나 · 확인 뒤 바로 저장</span></h3><div class="rowops">`+
    b("add","＋ 아래에 추가","같은 레벨, 이 업무 바로 아래")+b("child","＋ 하위 추가","이 업무 아래 맨 뒤")+b("up","▲ 위로","같은 묶음 안에서 한 칸")+b("down","▼ 아래로","같은 묶음 안에서 한 칸")+
@@ -800,6 +811,148 @@ const PICK={
   out.querySelectorAll("[data-p]").forEach(x=>x.onclick=()=>{const ty=$("pt_"+id).value,lg=Math.round(+$("pl_"+id).value||0),
     tok=x.dataset.p+(ty==="FS"&&!lg?"":ty)+(lg?(lg>0?"+":"")+lg+"일":""),inp=$(id),cur=inp.value.trim().replace(/[,;]\s*$/,"");
    inp.value=cur?cur+","+tok:tok;out.innerHTML=`<span class="mut">넣음: ${esc(tok)} — 더 찾거나, 위 ‘적용’·‘미리 계산’ 을 누르세요</span>`})}};
+// ---- v0.5 S5 ⑤ 판·요청 — 수정 요청 · 판 확정·비교 · 모듈별 내려받기 · (관리자) 편집 열고 닫기·백업 ----
+const COLLAB=window.COLLAB={reqs:null,reqsAt:0,snaps:null,draft:null,cmpAB:null,
+ st(){return window.__WBS_STATE__||{edit_open:true,edit_note:"",inbox:0}},
+ noOf(u){if(!this._no)this._no=new Map([...UID].map(([n,x])=>[x,n]));return this._no.get(u)},
+ mods(){return [...T.values()].filter(t=>t.lv===1)},
+ num(v){const m=/^\s*(\d+)/.exec(String(v||""));return m?+m[1]:null},
+ async call(url,body){const r=await fetch(url,body===undefined?{cache:"no-store"}:{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({error:"서버 응답을 읽지 못함"}));if(!r.ok)throw new Error(j.error||("실패 "+r.status));return j},
+ async loadReqs(force){if(SRV.role.kind==="viewer"){this.reqs=[];return}if(force||!this.reqs||Date.now()-this.reqsAt>30000){this.reqs=await this.call("api/requests");this.reqsAt=Date.now()}},
+ async loadSnaps(force){if(force||!this.snaps)this.snaps=await this.call("api/snapshots")},
+ on(){return $("co").classList.contains("on")},
+ state(s){if(this.on()&&this._lk!==s.edit_open){this._lk=s.edit_open;this.render()}},
+ tk(t,link){if(!t)return "";return (t.no!=null&&link!==false?`<span class="lnk" data-n="${t.no}">${t.no}</span> `:t.no!=null?t.no+" ":"")+`${esc(t.wbs||"")} ${esc(t.name)}`},
+ links(el){el.querySelectorAll(".lnk[data-n]").forEach(a=>a.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+a.dataset.n)})},
+ render(){const el=$("co"),R=SRV.role,adm=R.kind==="admin";this._lk=this.st().edit_open;
+  el.innerHTML=`<div class="cobox" id="coReq"></div><div class="cobox" id="coSnap"></div><div class="cobox" id="coDown"></div>${adm?'<div class="cobox" id="coAdm"></div>':""}`;
+  if(R.kind==="viewer")$("coReq").innerHTML='<h3>수정 요청</h3><div class="mut">조회자는 수정 요청을 보내거나 처리할 수 없습니다 — 필요하면 관리자에게 역할을 받으세요.</div>';
+  else this.renderReq();
+  this.renderDown();this.renderSnap();if(adm)this.renderAdm()},
+ // --- 수정 요청 ---
+ form(){const R=SRV.role,d=this.draft||{},mods=this.mods().filter(t=>R.kind==="admin"||UID.get(t.no)!==R.module_uid);
+  const sel=(v,x)=>v===x?" selected":"";
+  return `<details id="rqNew"${d.open?" open":""}><summary><b>＋ 새 수정 요청</b> <span class="mut">다른 모듈에 — 예: 내 업무의 선행이 될 업무가 없음</span></summary><table class="cotb" style="max-width:820px">
+   <tr><td style="width:120px">종류</td><td><select id="rqKind"><option value="pred"${sel(d.kind,"pred")}>선행이 될 업무가 없음</option><option value="fix"${sel(d.kind,"fix")}>고쳐 주세요</option><option value="etc"${sel(d.kind,"etc")}>기타</option></select></td></tr>
+   <tr><td>받는 모듈</td><td><select id="rqTo"><option value="">고르세요</option>${mods.map(t=>`<option value="${UID.get(t.no)}"${sel(d.to,UID.get(t.no))}>${esc(t.name)}</option>`).join("")}</select> <span class="mut">고쳐 달라는 업무를 적으면 그 업무의 모듈</span></td></tr>
+   <tr><td>고쳐 달라는 업무</td><td><input type="text" id="rqTask" style="width:6em" value="${d.task??""}" placeholder="번호"> <button data-pick="rqTask">고르기</button> <span class="mut">없어도 됨</span><div id="pick_rqTask"></div></td></tr>
+   <tr><td>요청한 쪽 업무</td><td><input type="text" id="rqRef" style="width:6em" value="${d.ref??""}" placeholder="번호"> <button data-pick="rqRef">고르기</button> <span class="mut">선행이 필요한 내 업무 (없어도 됨)</span><div id="pick_rqRef"></div></td></tr>
+   <tr><td>글</td><td><textarea id="rqText" rows="3" maxlength="500" placeholder="무엇이 필요한지 (500자) — 사람 이름은 적지 마세요">${esc(d.text||"")}</textarea></td></tr></table>
+   <button class="pri" id="rqSend">보내기</button> <span id="rqMsg"></span></details>`},
+ item(x){let h=`<div class="req"><div><b>#${x.id}</b> <span class="pill"${x.status==="open"?' style="background:var(--acc);color:#fff"':""}>${esc(x.status_ko)}</span> ${esc(x.kind_ko)} <span class="mut">· ${esc(x.at.replace("T"," "))} · ${esc(x.from_role)}${x.from_module?` (${esc(x.from_module)})`:""} → ${esc(x.to_module_name)}</span></div>
+   <div style="white-space:pre-wrap;margin:2px 0">${esc(x.text)}</div>`;
+  if(x.task)h+=`<div class="mut">고쳐 달라는 업무: ${this.tk(x.task)}</div>`;
+  if(x.ref)h+=`<div class="mut">요청한 쪽 업무: ${this.tk(x.ref)}</div>`;
+  if(x.status!=="open")h+=`<div class="mut">${esc(x.status_ko)} · ${esc(x.closed_role||"")} ${esc((x.closed_at||"").replace("T"," "))}${x.reply?" — "+esc(x.reply):""}${x.result?` · 결과 업무 ${this.tk(x.result)}`:""}</div>`;
+  if(this.canAdd(x))h+=`<button class="pri" data-addpred="${x.id}" title="가정 편집 선행 칸에 넣기 — 저장은 ④ 탭에서">내 업무 ${x.ref.no} 의 선행에 ${x.result.no} 넣기</button> `;
+  if(x.can_act)h+=`<div style="margin-top:4px"><input type="text" id="rq_rep_${x.id}" placeholder="답 글 (반려는 이유 필수)" style="width:40%"> 결과 업무 <input type="text" id="rq_res_${x.id}" style="width:5em" placeholder="번호"> <button data-pick="rq_res_${x.id}">고르기</button>
+   <button class="pri" data-act="done" data-id="${x.id}">처리함</button> <button data-act="rejected" data-id="${x.id}">반려</button>${x.can_withdraw?` <button data-act="withdrawn" data-id="${x.id}">거두기</button>`:""}<div id="pick_rq_res_${x.id}"></div></div>`;
+  else if(x.can_withdraw)h+=`<button data-act="withdrawn" data-id="${x.id}">거두기</button>`;
+  return h+`<span id="rq_msg_${x.id}"></span></div>`},
+ // 처리된 요청의 결과 업무를 아직 내 업무 선행에 넣지 않았으면 (넣으면 사라짐)
+ canAdd(x){return x.status==="done"&&x.result&&x.result.no!=null&&x.ref&&x.ref.no!=null&&x.outbox&&SRV.mine(x.ref.no)&&T.has(x.ref.no)&&
+  !parseDeps(depsText(x.ref.no)).deps.some(d=>d.p===x.result.no)},
+ list(title,xs){if(!xs.length)return `<h3 style="margin-top:10px">${title} <span class="mut" style="font-weight:normal">없음</span></h3>`;
+  const top=x=>x.status==="open"||this.canAdd(x),op=xs.filter(top),cl=xs.filter(x=>!top(x)),wait=op.length-xs.filter(x=>x.status==="open").length;
+  return `<h3 style="margin-top:10px">${title} <span class="mut" style="font-weight:normal">열림 ${op.length-wait}${wait?` · 처리됨 — 선행에 넣기 ${wait}`:""}</span></h3>`+op.map(x=>this.item(x)).join("")+
+   (cl.length?`<details><summary class="mut">닫힌 요청 ${cl.length}</summary>${cl.map(x=>this.item(x)).join("")}</details>`:"")},
+ async renderReq(){const el=$("coReq");if(!el)return;el.innerHTML='<h3>수정 요청</h3><span class="mut">불러오는 중…</span>';
+  try{await this.loadReqs(true)}catch(e){el.innerHTML=`<h3>수정 요청</h3><span class="err">${esc(e.message)}</span>`;return}
+  const adm=SRV.role.kind==="admin",inb=this.reqs.filter(x=>x.inbox),outb=this.reqs.filter(x=>x.outbox&&!x.inbox);
+  el.innerHTML=`<h3>수정 요청 <span class="mut" style="font-weight:normal">${adm?"관리자는 모든 요청을 처리할 수 있음":"내 모듈로 온 것을 처리 · 내가 보낸 것을 거둠"}</span></h3>`+
+   (this.flash?`<div class="edbox" style="font-size:12px">${this.flash}</div>`:"")+this.form()+
+   this.list(adm?"모든 요청":"받은 요청 (내 모듈)",inb)+(adm?"":this.list("보낸 요청",outb));
+  PICK.bind(el);this.links(el);
+  $("rqSend").onclick=()=>this.send();
+  el.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>this.act(+b.dataset.id,b.dataset.act));
+  el.querySelectorAll("[data-addpred]").forEach(b=>b.onclick=()=>{const x=this.reqs.find(r=>r.id===+b.dataset.addpred);if(x)this.addPred(x.ref.no,x.result.no)})},
+ async send(){const m=$("rqMsg"),err=t=>{m.innerHTML=`<span class="err">${esc(t)}</span>`};
+  const tn=this.num($("rqTask").value),rn=this.num($("rqRef").value),to=+$("rqTo").value||null,text=$("rqText").value.trim();
+  if(tn!=null&&!T.has(tn))return err("고쳐 달라는 업무 번호가 없습니다");if(rn!=null&&!T.has(rn))return err("요청한 쪽 업무 번호가 없습니다");
+  if(tn==null&&!to)return err("받는 모듈을 고르거나 고쳐 달라는 업무를 적으세요");if(!text)return err("글을 적으세요");
+  const body={kind:$("rqKind").value,text};if(tn!=null)body.task_uid=UID.get(tn);else body.to_module=to;if(rn!=null)body.ref_uid=UID.get(rn);
+  $("rqSend").disabled=true;m.textContent="보내는 중…";
+  try{const x=await this.call("api/requests",body);this.draft=null;this.flash=`보냄 — #${x.id} → ${esc(x.to_module_name)} (받는 모듈 리더 화면 머리 줄에 ‘받은 요청’ 으로 뜸)`;await this.renderReq();this.flash=""}
+  catch(e){err(e.message);$("rqSend").disabled=false}},
+ async act(id,action){const m=$("rq_msg_"+id),rep=$("rq_rep_"+id),res=$("rq_res_"+id),body={action,reply:rep?rep.value.trim():""};
+  if(action==="withdrawn"&&!confirm(`요청 #${id} 을 거둘까요?`))return;
+  if(action==="done"&&res&&res.value.trim()){const n=this.num(res.value);if(n==null||!T.has(n)){m.innerHTML='<span class="err">결과 업무 번호가 없습니다</span>';return}body.result_uid=UID.get(n)}
+  try{const x=await this.call("api/requests/"+id,body);this.flash=`#${id} ${esc(x.status_ko)}`+(x.result?` · 결과 업무 ${x.result.no} ${esc(x.result.name)}`:"");await this.renderReq();this.flash="";this.syncInbox()}catch(e){if(m)m.innerHTML=` <span class="err">${esc(e.message)}</span>`}},
+ syncInbox(){fetch("api/status",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(s=>{if(s&&window.__srvShow)window.__srvShow(s)}).catch(()=>{})},
+ addPred(refNo,resNo){const cur=depsText(refNo);if(parseDeps(cur).deps.some(d=>d.p===resNo)){alert(`이미 ${refNo} 의 선행에 ${resNo} 가 있습니다`);return}
+  const e={...(ED.get(refNo)||{})};e.preds=cur?cur+","+resNo:String(resNo);EDLOAD=0;ED.set(refNo,e);edRecompute();
+  document.querySelector('nav button[data-t="gr"]').click();goTask(refNo)},
+ taskBox(no){if(SRV.role.kind==="viewer")return "";return `<h3>수정 요청</h3><div id="taskReq" style="font-size:12px" class="mut">불러오는 중…</div>`},
+ async bindTask(no){const el=$("taskReq");if(!el)return;try{await this.loadReqs()}catch(e){el.textContent="요청을 불러오지 못함";return}if($("taskReq")!==el)return;
+  const u=UID.get(no),own=SRV.mine(no)&&SRV.role.kind!=="admin",hits=this.reqs.filter(x=>[x.task,x.ref,x.result].some(t=>t&&t.uid===u));
+  el.innerHTML=(hits.length?hits.map(x=>`<div>#${x.id} <span class="pill">${esc(x.status_ko)}</span>${esc(x.kind_ko)} · ${esc(x.from_role)} → ${esc(x.to_module_name)}: ${esc(x.text.length>60?x.text.slice(0,60)+"…":x.text)}</div>`).join(""):"이 업무에 걸린 요청 없음")+
+   `<div><button class="eb" id="taskReqGo">${own?"이 업무의 선행이 될 업무를 다른 모듈에 요청":"이 업무에 대해 수정 요청"}</button></div>`;
+  $("taskReqGo").onclick=()=>{this.draft=own?{open:1,kind:"pred",ref:no}:{open:1,kind:"fix",task:no,to:UID.get(SRV.lv1(no))};document.querySelector('nav button[data-t="co"]').click()}},
+ // --- 판 확정 · 비교 ---
+ async renderSnap(){const el=$("coSnap");if(!el)return;el.innerHTML='<h3>확정한 판</h3><span class="mut">불러오는 중…</span>';
+  try{await this.loadSnaps(true)}catch(e){el.innerHTML=`<h3>확정한 판</h3><span class="err">${esc(e.message)}</span>`;return}
+  const S_=this.snaps,adm=SRV.role.kind==="admin";
+  let h=`<h3>확정한 판 <span class="mut" style="font-weight:normal">그 순간을 얼린 사본 — 고치거나 지우지 않음 · 작업은 지금 판(#${D.server.rev})에서 계속</span></h3>`;
+  h+=S_.length?`<table class="cotb"><tr><th>이름</th><th>확정</th><th>판 #</th><th>업무</th><th>사업 완료</th><th>주경로</th><th>메모</th><th></th></tr>`+
+   S_.slice().reverse().map(s=>{const m=s.summary||{};return `<tr><td><b>${esc(s.label)}</b></td><td>${esc(s.at.replace("T"," "))} · ${esc(s.role)}</td><td class="n">${s.rev}</td><td class="n">${(m.tasks||0).toLocaleString()}</td><td>${esc(m.end||"-")}</td><td class="n">${m.critical??"-"}</td><td>${esc(s.note)}</td><td><button data-cmp="${s.id}">지금과 비교</button></td></tr>`}).join("")+"</table>":'<div class="mut">아직 없음</div>';
+  if(adm)h+=`<div style="margin-top:8px">새 판 확정 <input type="text" id="snLabel" maxlength="60" placeholder="이름 — 예: 1차본" style="width:11em"> <input type="text" id="snNote" maxlength="500" placeholder="메모 (없어도 됨)" style="width:35%"> <button class="pri" id="snGo">판 확정</button> <span id="snMsg" class="mut">확정 직전에 자동 백업</span></div>`;
+  if(S_.length){const o=(sel)=>S_.map(s=>`<option value="${s.id}"${s.id===sel?" selected":""}>${esc(s.label)}</option>`).join(""),ab=this.cmpAB||[S_[S_.length-1].id,"now"];
+   h+=`<div style="margin-top:10px"><b>비교</b> <select id="cmpA">${o(ab[0])}</select> → <select id="cmpB"><option value="now">지금</option>${o(ab[1])}</select> <button id="cmpGo">비교</button>
+    <label class="mut"><input type="checkbox" id="cmpDates"> 날짜만 움직인 업무도 목록에</label></div><div id="cmpOut"></div>`}
+  el.innerHTML=h;this.renderDown();
+  if(adm)$("snGo").onclick=()=>this.freeze();
+  el.querySelectorAll("[data-cmp]").forEach(b=>b.onclick=()=>{$("cmpA").value=b.dataset.cmp;$("cmpB").value="now";this.compare()});
+  if(S_.length){$("cmpGo").onclick=()=>this.compare();$("cmpDates").onchange=()=>this.lastCmp&&this.showCmp(this.lastCmp)}},
+ async freeze(){const lb=$("snLabel").value.trim(),m=$("snMsg");if(!lb){m.innerHTML='<span class="err">판 이름을 적으세요</span>';return}
+  if(ED.size&&!confirm(`저장 안 한 가정 편집 ${ED.size}업무는 판에 들어가지 않습니다 (서버에 저장된 판 #${D.server.rev} 을 얼림). 계속할까요?`))return;
+  if(!confirm(`지금 판(#${D.server.rev})을 ‘${lb}’ 로 확정할까요? 확정한 판은 고치거나 지울 수 없습니다.`))return;
+  $("snGo").disabled=true;m.textContent="백업하고 확정하는 중…";
+  try{const x=await this.call("api/snapshots",{label:lb,note:$("snNote").value.trim()});await this.renderSnap();const mm=$("snMsg");if(mm)mm.innerHTML=`확정함 — ‘${esc(x.label)}’ (백업 ${esc(x.backup)})`}
+  catch(e){m.innerHTML=`<span class="err">${esc(e.message)}</span>`;$("snGo").disabled=false}},
+ async compare(){const a=$("cmpA").value,b=$("cmpB").value,o=$("cmpOut");this.cmpAB=[+a,b==="now"?"now":+b];o.innerHTML='<span class="mut">비교하는 중… (판 두 장을 다시 계산 — 몇 초)</span>';
+  try{const c=await this.call(`api/compare?a=${a}&b=${b}`);c._a=a;c._b=b;this.lastCmp=c;this.showCmp(c)}catch(e){o.innerHTML=`<span class="err">${esc(e.message)}</span>`}},
+ showCmp(c){const o=$("cmpOut");if(!o)return;const a=c.a,b=c.b,k=c.counts,sh=c.end_shift,now=c._b==="now";
+  let h=`<table class="cotb" style="width:auto;margin-top:6px"><tr><th></th><th>${esc(c.name_a)}</th><th>${esc(c.name_b)}</th></tr>
+   <tr><td>업무</td><td class="n">${a.tasks.toLocaleString()}</td><td class="n">${b.tasks.toLocaleString()}</td></tr>
+   <tr><td>사업 완료</td><td>${esc(a.end||"-")}</td><td>${esc(b.end||"-")}${sh?` <b class="${sh>0?"err":""}">(${sh>0?"+":""}${sh} 평일)</b>`:""}</td></tr>
+   <tr><td>주경로 하위 업무</td><td class="n">${a.critical}</td><td class="n">${b.critical}</td></tr><tr><td>Man Hours 합</td><td class="n">${fmtMH(a.mh)}</td><td class="n">${fmtMH(b.mh)}</td></tr></table>
+   <div style="margin:6px 0">추가 <b>${k.added}</b> · 삭제 <b>${k.deleted}</b> · 고친 업무 <b>${k.changed}</b> <span class="mut">(이름 ${k.name} · 기간 ${k.duration} · 선행 ${k.preds} · MH ${k.man_hours} · 묶음 이동 ${k.parent} · 시작 하한 ${k.start_floor})</span> · 날짜가 움직인 업무 <b>${k.dates}</b>`+
+   (c.issues.length?` · 검사 ${c.issues.map(i=>`${esc(i.code)} ${i.a}→${i.b}`).join(", ")}`:"")+` · <a href="compare.xlsx?a=${c._a}&b=${c._b}">비교 엑셀 내려받기</a></div>`;
+  if(c.modules.length)h+=`<table class="cotb" style="width:auto"><tr><th>모듈</th><th>추가</th><th>삭제</th><th>고침</th><th>날짜 움직임</th><th>완료가 늦어진 하위 업무</th><th>가장 늦어진 평일</th></tr>`+
+   c.modules.map(r=>`<tr><td>${esc(r.module)}</td><td class="n">${r.added}</td><td class="n">${r.deleted}</td><td class="n">${r.changed}</td><td class="n">${r.dated}</td><td class="n">${r.finish_late}</td><td class="n">${r.finish_max||""}</td></tr>`).join("")+"</table>";
+  const all=$("cmpDates")&&$("cmpDates").checked,xs=c.items.filter(i=>all||i.kind!=="dates"),KO={added:"추가",deleted:"삭제",changed:"고침",dates:"날짜만"};
+  h+=`<h3 style="margin-top:10px">바뀐 업무 <span class="mut" style="font-weight:normal">${xs.length.toLocaleString()}${xs.length>300?" — 앞 300 (전체는 비교 엑셀)":""}${c.items_total>c.items.length?` · 서버가 보낸 것 ${c.items.length.toLocaleString()} / ${c.items_total.toLocaleString()}`:""}</span></h3>`;
+  h+=xs.length?`<table class="cotb"><tr><th>구분</th><th>모듈</th><th>번호</th><th>WBS</th><th>이름</th><th>무엇이</th><th>완료 이동</th></tr>`+xs.slice(0,300).map(i=>{
+    const no=i.no_b??i.no_a,lk=now&&i.kind!=="deleted"&&i.no_b!=null&&T.has(i.no_b);
+    return `<tr><td>${KO[i.kind]}</td><td>${esc(i.module)}</td><td class="n">${lk?`<span class="lnk" data-n="${i.no_b}">${i.no_b}</span>`:(no??"")}</td><td>${esc(i.wbs_b||i.wbs_a||"")}</td><td>${esc(i.name)}</td>
+     <td>${i.changes.map(ch=>`${esc(ch.label)} ${esc(ch.a??"-")} → ${esc(ch.b??"-")}`).join("<br>")}</td><td class="n">${i.finish_shift?(i.finish_shift>0?"+":"")+i.finish_shift:""}</td></tr>`}).join("")+"</table>":'<div class="mut">없음</div>';
+  o.innerHTML=h;this.links(o)},
+ // --- 내려받기 ---
+ renderDown(){const el=$("coDown");if(!el)return;const S_=this.snaps||[],keep=[$("dlSnap")?.value,$("dlMod")?.value];
+  el.innerHTML=`<h3>엑셀 내려받기</h3>판 <select id="dlSnap"><option value="">지금 (판 #${D.server.rev})</option>${S_.map(s=>`<option value="${s.id}">${esc(s.label)}</option>`).join("")}</select>
+   모듈 <select id="dlMod"><option value="">전체</option>${this.mods().map(t=>`<option value="${UID.get(t.no)}">${esc(t.name)}</option>`).join("")}</select> <button id="dlX">엑셀</button> <button id="dlR">보고서</button>
+   <div class="mut" style="margin-top:4px">모듈 엑셀 = 그 Lv1 아래 줄만 · 번호·WBS 코드·선행은 전체 판 번호 그대로 · 둘째 시트 ‘밖 연결’ 에 다른 모듈과의 선행 · 인명 칸은 비어 있음 · 보고서(검사·주경로·월별 공수)는 모듈과 무관하게 전체</div>`;
+  if(keep[0]!=null){$("dlSnap").value=keep[0]||"";$("dlMod").value=keep[1]||""}
+  $("dlX").onclick=()=>{const s=$("dlSnap").value,m=$("dlMod").value;if(!s&&ED.size&&!confirm(`가정 편집 ${ED.size}건은 아직 서버에 저장되지 않아 이 엑셀에 들어가지 않습니다. 저장된 판 그대로 내려받을까요?`))return;
+   location.href=(s?`snapshot/${s}.xlsx`:"export.xlsx")+(m?`?module=${m}`:"")};
+  $("dlR").onclick=()=>{const s=$("dlSnap").value;location.href="report.xlsx"+(s?`?snapshot=${s}`:"")}},
+ // --- 관리 (관리자) ---
+ async renderAdm(){const el=$("coAdm");if(!el)return;const s=this.st();
+  el.innerHTML=`<h3>관리 (관리자)</h3><div><b>편집</b> ${s.edit_open?'<span class="pill">열림</span>':`<span class="pill" style="background:var(--hot);color:#fff">닫힘</span> ${esc(s.edit_note||"")}`}
+   ${s.edit_open?'<input type="text" id="lkNote" maxlength="200" placeholder="안내 글 — 예: 11/20 까지 검토 기간" style="width:35%"> <button id="lkGo">편집 닫기</button>':'<button class="pri" id="lkGo">편집 열기</button>'}
+   <span class="mut">닫히면 관리자 외 저장·줄 편집 거절 · 수정 요청은 계속 받음</span> <span id="lkMsg"></span></div>
+   <div style="margin-top:8px"><b>백업</b> <button id="bkGo">지금 백업</button> <span id="bkMsg" class="mut">서버 켤 때 · 하루 한 번 · 판 확정 직전에 자동</span><div id="bkList" class="mut" style="font-size:12px">불러오는 중…</div></div>`;
+  $("lkGo").onclick=async()=>{const open=!s.edit_open,note=open?"":($("lkNote").value||"").trim();if(!open&&!confirm("편집을 닫을까요? 관리자 외에는 저장할 수 없게 됩니다."))return;
+   try{const x=await this.call("api/lock",{open,note});const ns={...this.st(),edit_open:x.open,edit_note:x.note};window.__WBS_STATE__=ns;if(window.__srvShow)window.__srvShow(ns);this.renderAdm()}
+   catch(e){$("lkMsg").innerHTML=`<span class="err">${esc(e.message)}</span>`}};
+  $("bkGo").onclick=async()=>{$("bkGo").disabled=true;$("bkMsg").textContent="백업 중…";try{const x=await this.call("api/backups",{});$("bkMsg").textContent=`만듦 — ${x.name} (업무 ${x.tasks.toLocaleString()})`;this.bkList()}catch(e){$("bkMsg").innerHTML=`<span class="err">${esc(e.message)}</span>`}$("bkGo").disabled=false};
+  this.bkList()},
+ async bkList(){const el=$("bkList");if(!el)return;try{const x=await this.call("api/backups");
+   el.innerHTML=`폴더 ${esc(x.folder)} · 사본 ${x.files.length}개 (판 확정 직전 사본은 지우지 않음 · 되돌리기는 서버를 끄고 scripts\\restore.bat)`+
+    x.files.slice(0,8).map(f=>`<div>${esc(f.name)} · ${esc(f.kind_ko)} · 판 #${f.rev} · ${(f.bytes/1e6).toFixed(1)} MB</div>`).join("")+(x.files.length>8?`<div>… ${x.files.length-8}개 더</div>`:"")}
+  catch(e){el.innerHTML=`<span class="err">${esc(e.message)}</span>`}}};
+if(D.server)$("coTab").style.display="";
 // 줄 편집 저장 뒤 새로 불러오면 그 업무(지웠으면 부모)를 다시 고른다
 if(D.server)try{const g=sessionStorage.getItem("wbs-goto-uid");if(g){sessionStorage.removeItem("wbs-goto-uid");const no=[...UID].find(([n,u])=>u===+g)?.[0];
  if(no!=null)setTimeout(()=>{try{goTask(no)}catch(e){}},300)}}catch(e){}

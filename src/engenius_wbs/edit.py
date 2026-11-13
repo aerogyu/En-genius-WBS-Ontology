@@ -19,13 +19,14 @@ from datetime import date
 from .auth import Role
 from .config import nfkc
 from .parse import DEP_RE, parse_deps
-from .rows import EditError, check_cycles, cycle_uids
+from .rows import EditError, check_cycles, check_open, cycle_uids
 from .store import Store, _units
 
 FIELDS = ("duration", "start", "preds", "name", "man_hours", "fix_relax")
 LEAF_ONLY = ("duration", "start", "man_hours")
 LABEL = {"duration": "기간(평일)", "start": "시작 하한", "preds": "선행", "name": "이름", "man_hours": "Man Hours",
          "fix_relax": "느슨함(평일)", "relax": "느슨함(평일)", "add": "추가", "delete": "삭제", "move": "위치(WBS)", "children": "하위 줄", "ungroup": "풀기"}
+KIND_KO = {"edit": "칸 고치기", "rows": "줄 편집", "snapshot": "판 확정", "lock": "편집 열고 닫기"}
 MAX_EDITS = 2000
 
 
@@ -47,6 +48,7 @@ def apply_edits(st: Store, cfg: dict, role: Role, base_rev: int, edits: list[dic
     """→ {txn, rev, tasks, moved, end_before, end_after}. 안 되면 EditError (아무것도 쓰지 않음)."""
     if role.kind == "viewer":
         raise EditError("denied", "조회자는 저장할 수 없다")
+    check_open(st, role)
     if not isinstance(edits, list) or not edits or len(edits) > MAX_EDITS:
         raise EditError("invalid", "고친 것이 없거나 너무 많다")
     m = st.model(cfg)
@@ -199,5 +201,6 @@ def history(st: Store, cfg: dict, uid: int | None = None, limit: int = 50) -> li
             chs.append({"uid": c["task_uid"], "no": no, "wbs": t.wbs if t else "", "name": t.name if t else "(지운 업무)",
                         "field": c["field"], "label": LABEL.get(c["field"], c["field"]), "old": c["old"], "new": c["new"]})
         note = json.loads(x["note"]) if x["note"] and x["note"].startswith("{") else {}
-        out.append({"txn": x["id"], "at": x["at"], "role": x["role"], "kind": x["kind"], "note": note, "changes": chs})
+        out.append({"txn": x["id"], "at": x["at"], "role": x["role"], "kind": x["kind"], "kind_ko": KIND_KO.get(x["kind"], x["kind"]),
+                    "note": note, "changes": chs})
     return out

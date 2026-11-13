@@ -79,7 +79,8 @@ def test_view_same_data_as_build(app_db):
     c2 = TestClient(app)
     login(c2, "fan")
     assert c2.get("/data.js").text == js.text and "FAN 리더 · " in c2.get("/").text
-    assert c2.get("/api/status").json() == {"rev": 1, "tasks": 12, "role": "FAN 리더", "kind": "leader"}
+    assert c2.get("/api/status").json() == {"rev": 1, "tasks": 12, "role": "FAN 리더", "kind": "leader",
+                                            "edit_open": True, "edit_note": "", "inbox": 0}     # S5: 편집 열림 · 받은 요청 수
 
 
 def test_viewer_rights_and_export(app_db):
@@ -132,7 +133,7 @@ def test_rev_changes_data(app_db):
     first = c.get("/data.js").text
     with Store(db) as st:
         uid = st.db.execute("SELECT uid FROM task WHERE duration_days > 0 AND uid NOT IN (SELECT parent_uid FROM task WHERE parent_uid IS NOT NULL) LIMIT 1").fetchone()[0]
-        st._txn("test")
+        st._txn("edit")          # 일정을 바꾸는 저장 (DATA_KINDS)
         st.db.execute("UPDATE task SET duration_days = duration_days + 2, work_days = work_days + 2 WHERE uid = ?", (uid,))
         st.recompute(CFG)
         st.db.commit()

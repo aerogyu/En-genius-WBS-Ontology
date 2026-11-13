@@ -74,3 +74,12 @@ windows_login:
   enabled: true
   domain: ""
   unregistered: viewer
+
+# 백업 (v0.5 S5, backup.py) — SQLite 온라인 백업. 서버 켤 때 · 하루 한 번(daily_at 이후, 마지막 사본 뒤 저장이 있었을 때만) · 판 확정 직전 · scripts\backup.bat
+#   dir: 비면 DB 옆 backup\ (data\real\backup\). 같은 디스크면 디스크 고장 때 같이 잃는다 — 다른 드라이브·사내 공유 폴더 권장 (절대 경로, 또는 저장소 기준 상대 경로)
+#   keep: 종류(서버 켤 때·하루·수동)마다 최근 몇 개. 판 확정 직전 사본은 지우지 않는다
+#   사본에는 Windows 계정 → 역할 표가 들어 있다 — 백업 폴더는 서버 PC 와 같은 수준으로 다룰 것
+backup:
+  dir: ""
+  keep: 14
+  daily_at: "18:00"

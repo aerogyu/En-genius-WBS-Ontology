@@ -30,6 +30,7 @@ MS Project 로 만든 사업 WBS 엑셀(약 12,800행, Lv1~Lv6)의 **선행 작�
 - `analyze.py` — C01~C12 · 순환(Tarjan) · 앞쪽/뒤쪽 전체(비트셋) · 사건 그래프 CPM(업무마다 시작·완료 사건, 상위 묶음은 감쌈) · 분야 간 흐름
 - `rdfout.py` (wbs.ttl·derived.ttl) · `report.py` (xlsx 9시트) · `workload.py` (월별 공수 — 가장 아래 적힌 MH 를 시작~완료 평일에 고르게) · `viz.py` (HTML 한 장, 데이터 JSON 내장) · `synth.py` (가짜 WBS + 심은 문제 = 테스트 골든)
 - `config/wbs.yaml` — 헤더 별칭·인명 칸·레벨 이름·단위 (사내 조정본 `data/real/config/wbs.yaml`)
+- 서버 쪽 (v0.5): `store.py`(SQLite 정본) · `server.py` · `auth.py`·`winauth.py` · `edit.py`(칸) · `rows.py`(줄) · `snapshot.py`(판 확정·비교) · `backup.py` · `collab.py`(수정 요청·편집 열림/닫힘)
 - 실행: `<Tool 온톨로지>\.venv\Scripts\python -m engenius_wbs build <xlsx>` (PYTHONPATH=src, PYTHONUTF8=1) · 사내 `scripts\build.bat` 에 끌어다 놓기
 
 ## 현재 상태
@@ -93,14 +94,17 @@ MS Project 로 만든 사업 WBS 엑셀(약 12,800행, Lv1~Lv6)의 **선행 작�
   - 선행 '고르기'. 가정 편집은 브라우저에 uid 기준으로 남긴다.
   - 느슨함 '바로잡기'(fix_relax) · 업무별 이력 · 검사 '내 모듈만'.
   - 합성 12,827행: 줄 동작 약 1초, 바로잡기 미리 보기 = 서버 (372업무, 차이 0). pytest 67.
-  - 남은 것: Lv 일괄 줄이기 명령(`flatten`, 필요할 때) · 전체 표 편집기 · 되살리기 화면. 다음 = S5 협업 (수정 요청·판 확정·모듈별 내보내기·백업·편집 열림/닫힘).
+  - 남은 것: Lv 일괄 줄이기 명령(`flatten`, 필요할 때 — S5 판 확정 뒤) · 전체 표 편집기 · 되살리기 화면.
   **다시 들여오기 (Leo 2026-11-12, docs/05 12-1)**: `import.bat` 이 덮어쓸지 묻고(`--ask`), 새 DB 를 다 만든 뒤 옛 것을 `.bak-<시각>` 으로 · 역할·계정 표 옮김(리더 모듈은 Lv1 이름으로) ·
   서버 캐시가 새 DB 를 알아봄. pytest 54.
   상시 PC 서버 + 사내망 브라우저 가능. 제안 = 서버 한 곳 정본(SQLite·고유 ID)·리더가 직접 편집·판 확정·엑셀 왕복 유지, 기능은 단계별. **Leo 확인 A~E 대기** → 아키텍처 설계(Fable 권장).
-- [ ] **v0.5 S5 협업 — 설계 제안 (2026-11-13, docs/05 14장, Leo 확인 대기 Q1~Q4)**: 새 탭 ⑤ 판·요청.
-  ① 판 확정 = 같은 DB 안 `snapshot`·`snap_task`·`snap_dep` 표(uid JOIN 비교, 옛 판도 `Store.model` 로 읽음, rev 안 올림) · 백업(SQLite 온라인 백업 — 서버 켤 때·하루 한 번·판 확정 직전·`backup.bat`, `restore.bat`) ·
-  ② 판 비교(요약·모듈별·비교 엑셀, 간트 기준 막대는 2단계) · ③ 수정 요청(`request` 표, 처리 때 결과 업무 → 보낸 쪽 '선행에 넣기') ·
-  ④ 모듈별 내보내기(번호·WBS 코드 전체 판 그대로 + '밖 연결' 시트) · ⑤ 편집 열림/닫힘(닫히면 관리자 외 저장 거절, 요청은 받음). 권장: TTL 은 uid IRI 결정과 함께 따로 · 조회자 요청 막음.
+- [x] **v0.5 S5 협업 (2026-11-13, docs/05 14장 — Leo "제안대로", Q1~Q4 권장안)**: 새 탭 ⑤ 판·요청 · 스키마 판 2(판 1 DB 는 열 때 표만 더함) · 판 번호 = 일정 바꾼 저장만(`store.DATA_KINDS`).
+  `snapshot.py` 판 확정(관리자, 같은 DB 안 `snap_task`·`snap_dep` 통째, 옛 판 = 메모리 Store) · 판 비교(uid, 요약·모듈별·업무별 + 비교 엑셀) ·
+  `backup.py`(온라인 백업 — 서버 켤 때·하루 한 번 `backup.daily_at`·판 확정 직전·`backup.bat`, 사본 검사, 종류별 `keep`, `restore.bat` 은 `<db>.serving` 으로 서버 켜짐 거절) ·
+  `collab.py` 수정 요청(패널 단추 → ⑤ 탭, 처리 때 결과 업무 → 보낸 쪽 '선행에 넣기', 머리 줄 '받은 요청 n', 조회자 불가) · 편집 열림/닫힘(닫히면 관리자 외 423, 요청은 받음) ·
+  모듈별 엑셀(화면 판×모듈 · `export --module/--by-module/--snapshot`, 번호 그대로 + '밖 연결' 시트) · 옛 판 보고서. TTL 은 uid IRI 결정과 함께 따로.
+  합성 12,827행: 판 확정 2.0초(백업 포함) · 비교 3.6초 · 판 하나 DB +2.2 MB. 브라우저로 요청 흐름·판·비교·잠금·백업·엑셀 5종 확인, 오류 0. pytest 78.
+  **사내 확인 필요**: 실제 WBS 판 확정·비교 시간 · 백업 폴더(Q2) · restore.bat.
 - [x] 합성 WBS `data/synthetic/wbs_synthetic.xlsx`(기본값 12,827행·seed 7, 일반 명칭만) 저장소에 올림 (Leo 2026-11-04) — synth 를 바꾸면 다시 만들어 커밋.
 - [ ] Leo 확인 — 사내 실제 WBS 로 돌려 보기 v2 보기(헤더 이름이 별칭에 있는지, 문제 코드별 건수), 보기 HTML 이 쓸 만한지
 - [ ] 다음 후보: 판을 넘는 ID 이어받기(레지스트리) · WBS 트리·간트 화면 · 산출물 ↔ 자료 조사 유형 · 분야 ↔ Tool 온톨로지 파트 약칭 · 워크플로 온톨로지 단계와 대조 · TTL 쓰기 속도

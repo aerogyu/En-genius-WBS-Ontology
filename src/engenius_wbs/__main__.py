@@ -8,8 +8,12 @@
         → <원본>_수정_v01.xlsx (원본 형식 그대로, 원본은 안 건드림) + .changes.json, 이어서 그 파일로 build
     import <WBS.xlsx> [--db data/real/wbs.db] [--sheet 이름] [--config wbs.yaml] [--force]
         → 도구 DB (SQLite 파일 하나, v0.5 S1). 업무마다 고유 ID. 원본과 달라지는 칸은 <db>.import_notes.json 에
-    export [--db data/real/wbs.db] [--out 파일.xlsx] [--config wbs.yaml]
-        → DB 를 원본 양식 엑셀로 (기본 output/<시각>/)
+    export [--db data/real/wbs.db] [--out 파일.xlsx] [--config wbs.yaml] [--module Lv1 이름·WBS 코드 | --by-module] [--snapshot 판 이름·id]
+        → DB 를 원본 양식 엑셀로 (기본 output/<시각>/). --module 은 그 모듈만 (+ '밖 연결' 시트), --by-module 은 모듈마다 한 파일
+    snapshot list [--db]
+        → 확정한 판 목록 (판 확정은 서버 화면 ⑤ 판·요청 탭에서 — 관리자)
+    backup [--db]  |  backup list [--db]  |  restore <사본.db> [--db] [--force]
+        → 지금 DB 사본 (서버가 켜져 있어도 됨) · 사본 목록 · 사본으로 되돌리기 (서버를 끈 뒤, 옛 DB 는 .bak-<시각>)
     role add <로그인ID> --label 역할이름 --kind admin|leader|viewer [--module Lv1 이름·WBS 코드] [--db]   (비밀번호는 물어봄)
     role list | role passwd <로그인ID> | role off <로그인ID> | role on <로그인ID>
         → 역할 계정 (v0.5 S2). 역할 이름만 이력에 남는다 — 사람 이름을 쓰지 않는다
@@ -23,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
 import time
 from collections import Counter
 from datetime import datetime
@@ -120,21 +125,23 @@ COL_KO = {"row_no": "번호", "wbs": "WBS", "name": "이름", "duration": "기�
           "staff": "투입인력", "man_hours": "Man Hours", "deliverable": "산출물"}
 
 
-def _old_access(db: Path) -> tuple[int, int, list[dict], list[dict]]:
-    """덮어쓸 DB 의 업무 수 · 저장(편집) 수 · 역할 · Windows 계정 표 — 새 DB 로 옮기려고 읽어 둔다."""
+def _old_access(db: Path) -> tuple[int, int, list[dict], list[dict], int, int]:
+    """덮어쓸 DB 의 업무 수 · 저장(편집) 수 · 역할 · Windows 계정 표 · 확정한 판 수 · 열린 요청 수 — 새 DB 로 옮기려고 읽어 둔다."""
     from . import auth
     from .store import Store
 
     with Store(db) as st:
         auth.ensure(st.db)
         n = st.count()
-        edits = st.db.execute("SELECT COUNT(*) FROM txn WHERE kind = 'edit'").fetchone()[0]
+        edits = st.db.execute("SELECT COUNT(*) FROM txn WHERE kind IN ('edit', 'rows')").fetchone()[0]
+        snaps = st.db.execute("SELECT COUNT(*) FROM snapshot").fetchone()[0]
+        reqs = st.db.execute("SELECT COUNT(*) FROM request WHERE status = 'open'").fetchone()[0]
         roles = [dict(r) | {"module_name": (st.db.execute("SELECT name FROM task WHERE uid = ?", (r["module_uid"],)).fetchone() or [None])[0]}
                  for r in st.db.execute("SELECT * FROM role WHERE login != ?", (auth.WIN_VIEWER_LOGIN,))]
         win = st.db.execute("SELECT active FROM role WHERE login = ?", (auth.WIN_VIEWER_LOGIN,)).fetchone()
         roles.append({"login": auth.WIN_VIEWER_LOGIN, "active": win[0] if win else 1, "builtin": True})
         accounts = [dict(r) for r in st.db.execute("SELECT a.account, r.login FROM account a JOIN role r ON r.id = a.role_id")]
-    return n, edits, roles, accounts
+    return n, edits, roles, accounts, snaps, reqs
 
 
 def _carry_access(st, roles: list[dict], accounts: list[dict]) -> list[str]:
@@ -176,11 +183,13 @@ def cmd_import(a) -> int:
     cfg = load_config(a.config)
     old = None
     if db.exists():
-        n, edits, roles, accounts = _old_access(db)
+        n, edits, roles, accounts, snaps, reqs = _old_access(db)
         if n:
             print(f"[import] 이미 업무 {n:,}개가 든 DB 가 있다: {db}")
             if edits:
                 print(f"  · 이 DB 에 서버에서 저장한 편집이 {edits}번 있다 — 새로 들여오면 화면에서는 사라진다 (옛 DB 파일에는 남음)")
+            if snaps or reqs:
+                print(f"  · 확정한 판 {snaps}개 · 열린 수정 요청 {reqs}개는 새 DB 로 옮기지 않는다 (업무 ID 가 새로 매겨져 맞지 않음 — 옛 DB 파일에는 남음)")
             print("  · 덮어쓰면 옛 DB 는 .bak-<시각> 으로 이름을 바꿔 남기고, 역할·Windows 계정 표는 새 DB 로 옮긴다")
             ok = a.force
             if not ok and a.ask and sys.stdin and sys.stdin.isatty():
@@ -236,7 +245,9 @@ def cmd_import(a) -> int:
 
 
 def cmd_export(a) -> int:
-    from .store import Store
+    from .server import _safe
+    from .snapshot import find_snapshot, list_snapshots, open_snapshot
+    from .store import Store, module_of
 
     db = Path(a.db)
     if not db.exists():
@@ -244,18 +255,120 @@ def cmd_export(a) -> int:
         return 2
     cfg = load_config(a.config)
     t0 = time.perf_counter()
-    with Store(db) as st:
-        if not st.count():
+    with Store(db) as live:
+        if not live.count():
             print(f"[NG] 업무가 없는 DB 다: {db}")
             return 2
-        stem = Path(st.meta("source_name", "wbs.xlsx")).stem
-        out = Path(a.out) if a.out else REPO_ROOT / "output" / datetime.now().strftime("%Y%m%dT%H%M%S") / f"{stem}_export.xlsx"
-        if out.exists():
-            print(f"[NG] 이미 있는 파일은 덮어쓰지 않는다: {out}")
+        stem = Path(live.meta("source_name", "wbs.xlsx")).stem
+        tag = "export"
+        st = live
+        try:
+            if a.snapshot:
+                sid = find_snapshot(live, a.snapshot)
+                tag = _safe(next(x["label"] for x in list_snapshots(live) if x["id"] == sid))
+                st = open_snapshot(live, sid)
+            folder = REPO_ROOT / "output" / datetime.now().strftime("%Y%m%dT%H%M%S")
+            if a.by_module:
+                m = st.model(cfg)
+                mods = [(m.wbs.uids[no], t.name.strip()) for no, t in m.wbs.tasks.items() if t.level == 1]
+                outdir = Path(a.out) if a.out else folder
+                outs = []
+                for uid, name in mods:
+                    out = outdir / f"{stem}_{tag}_{_safe(name)}.xlsx"
+                    if out.exists():
+                        print(f"[NG] 이미 있는 파일은 덮어쓰지 않는다: {out}")
+                        return 2
+                    outs.append((st.export_xlsx(out, cfg, uid), name))
+                print(f"[export] 모듈 {len(outs)}개 → {outdir}  ({time.perf_counter() - t0:.1f}초)")
+                return 0
+            module = _module_uid(st, cfg, a.module) if a.module else None
+            mod = ""
+            if module is not None:
+                mod = "_" + _safe(st.db.execute("SELECT name FROM task WHERE uid = ?", (module,)).fetchone()[0])
+            out = Path(a.out) if a.out else folder / f"{stem}_{tag}{mod}.xlsx"
+            if out.exists():
+                print(f"[NG] 이미 있는 파일은 덮어쓰지 않는다: {out}")
+                return 2
+            st.export_xlsx(out, cfg, module)
+            m = st.model(cfg)
+            lv1 = module_of(m)
+            n = sum(1 for no in m.wbs.tasks if module is None or m.wbs.uids[lv1[no]] == module)
+        except ValueError as e:
+            print(f"[NG] {e}")
             return 2
-        st.export_xlsx(out, cfg)
-        n = st.count()
+        finally:
+            if st is not live:
+                st.close()
     print(f"[export] 업무 {n:,} → {out}  ({time.perf_counter() - t0:.1f}초)")
+    return 0
+
+
+def cmd_snapshot(a) -> int:
+    from .snapshot import list_snapshots
+    from .store import Store
+
+    db = Path(a.db)
+    if not db.exists():
+        print(f"[NG] DB 가 없다: {db}")
+        return 2
+    with Store(db) as st:
+        rows = list_snapshots(st)
+    if not rows:
+        print("[snapshot] 확정한 판이 없다 — 서버 화면 ⑤ 판·요청 탭에서 관리자가 확정")
+    for x in rows:
+        sm = x["summary"]
+        print(f"  {x['id']:>3}  {x['label']:<16} {x['at'].replace('T', ' ')} · {x['role']} · 판 #{x['rev']} · 업무 {sm.get('tasks', 0):,} · 완료 {sm.get('end')}")
+    return 0
+
+
+def cmd_backup(a) -> int:
+    from . import backup
+
+    db = Path(a.db)
+    cfg = load_config(a.config)
+    folder = backup.backup_dir(db, cfg)
+    if a.action == "list":
+        files = backup.list_backups(folder)
+        print(f"[backup] {folder} · 사본 {len(files)}개")
+        for b in files:
+            print(f"  {b.path.name}  ({backup.KIND_KO[b.kind]} · 판 #{b.rev} · {b.path.stat().st_size / 1e6:.1f} MB)")
+        return 0
+    if not db.exists():
+        print(f"[NG] DB 가 없다: {db}")
+        return 2
+    try:
+        p, chk = backup.make_backup(db, cfg, "manual")
+    except (RuntimeError, ValueError) as e:
+        print(f"[NG] {e}")
+        return 1
+    print(f"[backup] {p}  (업무 {chk['tasks']:,} · 판 #{chk['rev']} · 검사 {chk['integrity']})")
+    return 0
+
+
+def cmd_restore(a) -> int:
+    from . import backup
+
+    db, src = Path(a.db), Path(a.file)
+    if not src.exists():
+        print(f"[NG] 사본이 없다: {src}")
+        return 2
+    chk = backup.verify(src)
+    cur = backup.verify(db) if db.exists() else None
+    print(f"[restore] 사본 {src.name} — 업무 {chk['tasks']:,} · 판 #{chk['rev']} · 검사 {chk['integrity']}")
+    if cur:
+        print(f"  · 지금 DB {db.name} — 업무 {cur['tasks']:,} · 판 #{cur['rev']} (옛 DB 는 .bak-<시각> 으로 남긴다)")
+    ok = a.force
+    if not ok and sys.stdin and sys.stdin.isatty():
+        ok = input("  이 사본으로 되돌릴까요? (y/N): ").strip().lower() in ("y", "yes", "예", "ㅛ")
+    if not ok:
+        print("[restore] 그만둠 — 묻지 않으려면 --force")
+        return 2
+    try:
+        bak, _ = backup.restore(db, src)
+    except ValueError as e:
+        print(f"[NG] {e}")
+        return 2
+    print(f"[restore] 되돌림 → {db}" + (f"  (옛 DB → {bak.name})" if bak else ""))
     return 0
 
 
@@ -398,7 +511,25 @@ def cmd_serve(a) -> int:
         print("  · HTTP (암호화 없음) — 비밀번호가 망을 그대로 지난다. 사내 인증서가 있으면 --cert·--key 로 HTTPS")
     proto = "https" if a.cert else "http"
     print(f"  · 브라우저: {proto}://{shown}:{a.port}/   (끄려면 이 창에서 Ctrl+C)")
-    uvicorn.run(app, host=a.host, port=a.port, log_level="warning", ssl_certfile=a.cert, ssl_keyfile=a.key)
+    from . import backup
+    try:
+        p, _ = srv.backup_now("start")
+        print(f"  · 백업: {p}  (하루 한 번 {(srv.cfg.get('backup') or {}).get('daily_at') or backup.DEFAULT_DAILY_AT} 이후 · 판 확정 직전 · scripts\\backup.bat)")
+    except (RuntimeError, ValueError, OSError) as e:
+        print(f"  · [주의] 서버 켤 때 백업 실패: {e}")
+
+    def daily():
+        while True:
+            time.sleep(600)
+            try:
+                got = srv.backup_tick()
+                if got:
+                    print(f"[backup] {datetime.now():%m-%d %H:%M} 하루 백업 → {got.name}")
+            except Exception as e:          # 백업 실패가 서버를 멈추지 않게 — 창에 알린다
+                print(f"[backup] [주의] 하루 백업 실패: {type(e).__name__}: {e}")
+    threading.Thread(target=daily, daemon=True, name="wbs-daily-backup").start()
+    with backup.ServingMarker(db):        # 켜져 있는 동안 restore 를 막는 표시
+        uvicorn.run(app, host=a.host, port=a.port, log_level="warning", ssl_certfile=a.cert, ssl_keyfile=a.key)
     return 0
 
 
@@ -443,8 +574,22 @@ def main(argv=None) -> int:
     i.add_argument("--ask", action="store_true", help="업무가 든 DB 가 있으면 덮어쓸지 묻는다 (import.bat)")
     e = sub.add_parser("export", help="도구 DB 를 원본 양식 엑셀로 내보낸다")
     e.add_argument("--db", default=default_db)
-    e.add_argument("--out")
+    e.add_argument("--out", help="파일 (--by-module 이면 폴더)")
     e.add_argument("--config")
+    e.add_argument("--module", help="그 모듈(Lv1 이름 또는 WBS 코드)만 — 번호는 전체 판 번호 그대로, '밖 연결' 시트")
+    e.add_argument("--by-module", action="store_true", help="모듈마다 한 파일")
+    e.add_argument("--snapshot", help="확정한 판(이름 또는 id)을 내보낸다 (없으면 지금)")
+    sn = sub.add_parser("snapshot", help="확정한 판 목록 (v0.5 S5)")
+    sn.add_argument("action", choices=["list"])
+    sn.add_argument("--db", default=default_db)
+    bk = sub.add_parser("backup", help="DB 사본 만들기·목록 (v0.5 S5)")
+    bk.add_argument("action", nargs="?", choices=["make", "list"], default="make")
+    bk.add_argument("--db", default=default_db)
+    bk.add_argument("--config")
+    rs = sub.add_parser("restore", help="사본으로 되돌리기 — 서버를 끈 뒤 (v0.5 S5)")
+    rs.add_argument("file")
+    rs.add_argument("--db", default=default_db)
+    rs.add_argument("--force", action="store_true", help="묻지 않음")
     r = sub.add_parser("role", help="역할 계정 만들기·보기·비밀번호 (v0.5 S2)")
     r.add_argument("action", choices=["add", "list", "passwd", "off", "on"])
     r.add_argument("login", nargs="?")
@@ -469,7 +614,8 @@ def main(argv=None) -> int:
     s.add_argument("--config")
     a = ap.parse_args(argv)
     return {"build": cmd_build, "synth": cmd_synth, "apply": cmd_apply, "import": cmd_import, "export": cmd_export,
-            "role": cmd_role, "account": cmd_account, "serve": cmd_serve}[a.cmd](a)
+            "role": cmd_role, "account": cmd_account, "serve": cmd_serve, "snapshot": cmd_snapshot, "backup": cmd_backup,
+            "restore": cmd_restore}[a.cmd](a)
 
 
 if __name__ == "__main__":

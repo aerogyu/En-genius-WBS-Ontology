@@ -33,8 +33,16 @@ OP_KO = {"add": "추가", "delete": "삭제", "up": "위로", "down": "아래로
 class EditError(ValueError):
     def __init__(self, kind: str, message: str, items: list | None = None):
         super().__init__(message)
-        self.kind = kind            # invalid · denied · conflict
+        self.kind = kind            # invalid · denied · conflict · locked
         self.items = items or []
+
+
+def check_open(st: Store, role: Role) -> None:
+    """편집이 닫혀 있으면(S5, collab.set_edit_open) 관리자 외 저장·줄 편집 거절."""
+    if role.is_admin or st.meta("edit_open", True):
+        return
+    note = st.meta("edit_note", "") or ""
+    raise EditError("locked", "편집이 닫혀 있다 — 관리자만 저장" + (f" ({note})" if note else "") + ". 수정 요청은 보낼 수 있다")
 
 
 def max_level(cfg: dict) -> int:
@@ -78,6 +86,7 @@ def parse_preds(text, units: dict, tasks: dict, self_no: int | None = None) -> l
 def apply_row_op(st: Store, cfg: dict, role: Role, base_rev: int, op: dict, dry_run: bool = False) -> dict:
     if role.kind == "viewer":
         raise EditError("denied", "조회자는 저장할 수 없다")
+    check_open(st, role)
     if not isinstance(op, dict) or op.get("op") not in OPS:
         raise EditError("invalid", "모르는 줄 동작")
     kind = op["op"]

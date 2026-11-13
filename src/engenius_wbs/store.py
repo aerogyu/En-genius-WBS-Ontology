@@ -10,6 +10,9 @@ DB 에 두는 것과 계산하는 것:
            · 날짜(start·finish, 원래 글자 모양 start_text·finish_text) · 투입인력 · Man Hours(가장 아래 적힌 값만) · 산출물 · 선행(dep)
   계산     번호(앞에서부터 순서) · WBS 코드(형제 순서) · 레벨(깊이) · 후속 칸 · 요약의 날짜·Man Hours 합
 인명 칸은 읽지 않고, 내보낼 때 비워 둔다. 설정에 없는 칸은 버린다 (keep_columns 에 헤더를 적으면 값 그대로 보관).
+
+스키마 판 2 (S5): 판 확정 사본(snapshot·snap_task·snap_dep) · 수정 요청(request) 표를 더함. 판 1 DB 는 열 때 표만 더해 올린다.
+판 번호(rev) = 일정을 바꾼 저장(DATA_KINDS)의 마지막 txn id — 판 확정·편집 열고 닫기는 이력에 남지만 판 번호를 올리지 않는다.
 """
 from __future__ import annotations
 
@@ -33,7 +36,8 @@ from .config import nfkc, norm_header
 from .parse import DEP_RE, Dep, Task, Wbs, find_header, link_tree, parse_date, parse_duration, read_wbs
 from .schedule import EPS, ONE, event_values, finish_date, forward, start_date, widx
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+DATA_KINDS = ("import", "edit", "rows")      # 일정을 바꾸는 저장 (판 번호를 올림)
 INDENT_CHARS = " 　 "
 CELL = "@cell"          # start_text·finish_text: 엑셀 날짜 셀이었음 / dur_text: 숫자 셀이었음
 UID_HEADER = "UID"
@@ -72,6 +76,44 @@ CREATE TABLE change (id INTEGER PRIMARY KEY AUTOINCREMENT, txn_id INTEGER NOT NU
   task_uid INTEGER, field TEXT NOT NULL, old TEXT, new TEXT);
 CREATE TABLE note (id INTEGER PRIMARY KEY AUTOINCREMENT, txn_id INTEGER NOT NULL REFERENCES txn(id),
   task_uid INTEGER, col TEXT NOT NULL, old TEXT, new TEXT);   -- 들여올 때 원본과 달라진 칸 (내보내면 이렇게 나온다)
+"""
+
+# 스키마 판 2 (S5) — 판 1 DB 에는 이것만 더한다
+SCHEMA_2 = """
+CREATE TABLE IF NOT EXISTS snapshot (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  label TEXT NOT NULL UNIQUE,                 -- '1차본'
+  at TEXT NOT NULL, role TEXT NOT NULL,       -- 확정한 시각 · 역할 이름
+  rev INTEGER NOT NULL,                       -- 얼린 판 번호
+  txn_id INTEGER REFERENCES txn(id), note TEXT,
+  summary TEXT                                -- JSON: 업무 수·사업 시작·완료·주경로 수·C코드 건수·MH 합
+);
+CREATE TABLE IF NOT EXISTS snap_task (        -- task 와 같은 열 + snapshot_id (지운 줄 포함 통째)
+  snapshot_id INTEGER NOT NULL REFERENCES snapshot(id),
+  uid INTEGER NOT NULL, parent_uid INTEGER, pos INTEGER NOT NULL, name TEXT NOT NULL,
+  duration_days REAL, dur_text TEXT, work_days REAL, start_floor TEXT, start TEXT, finish TEXT, start_text TEXT, finish_text TEXT,
+  staff REAL, man_hours REAL, mh_sum INTEGER NOT NULL, deliverables TEXT, extra TEXT,
+  deleted INTEGER NOT NULL, rev INTEGER NOT NULL, src_no INTEGER, src_wbs TEXT, src_row INTEGER,
+  PRIMARY KEY (snapshot_id, uid)
+);
+CREATE TABLE IF NOT EXISTS snap_dep (
+  snapshot_id INTEGER NOT NULL REFERENCES snapshot(id),
+  id INTEGER NOT NULL, succ_uid INTEGER NOT NULL, pred_uid INTEGER NOT NULL, ord INTEGER NOT NULL,
+  type TEXT NOT NULL, lag_days REAL, lag_text TEXT NOT NULL, suffix TEXT NOT NULL, relax_days REAL NOT NULL,
+  PRIMARY KEY (snapshot_id, id)
+);
+CREATE TABLE IF NOT EXISTS request (          -- 수정 요청 (일정을 바꾸지 않으므로 txn 이 아니다)
+  id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL,
+  from_role TEXT NOT NULL, from_module INTEGER REFERENCES task(uid),   -- 보낸 역할 이름 · 그 역할의 모듈 (관리자는 없음)
+  to_module INTEGER NOT NULL REFERENCES task(uid),                     -- 받는 모듈 (Lv1 업무 uid)
+  task_uid INTEGER REFERENCES task(uid),      -- 고쳐 달라는 업무 (없을 수 있음 — '선행이 될 업무가 없음')
+  ref_uid INTEGER REFERENCES task(uid),       -- 요청한 쪽 업무 (그 업무의 선행이 필요함)
+  kind TEXT NOT NULL, text TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',        -- open 열림 · done 처리 · rejected 반려 · withdrawn 거둠
+  closed_at TEXT, closed_role TEXT, reply TEXT,
+  result_uid INTEGER REFERENCES task(uid)     -- 처리하며 만들었거나 고친 업무
+);
+CREATE INDEX IF NOT EXISTS request_to ON request(to_module, status);
 """
 
 
@@ -167,7 +209,11 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys = ON")
         if not self.db.execute("SELECT 1 FROM sqlite_master WHERE name = 'meta'").fetchone():
-            self.db.executescript(SCHEMA)
+            self.db.executescript(SCHEMA + SCHEMA_2)
+            self.set_meta("schema_version", SCHEMA_VERSION)
+            self.db.commit()
+        elif self.meta("schema_version") == 1:          # S4 까지의 DB — 표만 더한다 (업무·이력 그대로)
+            self.db.executescript(SCHEMA_2)
             self.set_meta("schema_version", SCHEMA_VERSION)
             self.db.commit()
         elif self.meta("schema_version") != SCHEMA_VERSION:
@@ -196,6 +242,14 @@ class Store:
 
     def count(self) -> int:
         return self.db.execute("SELECT COUNT(*) FROM task WHERE deleted = 0").fetchone()[0]
+
+    def rev(self) -> int:
+        """판 번호 — 일정을 바꾼 마지막 저장."""
+        q = ",".join("?" * len(DATA_KINDS))
+        return self.db.execute(f"SELECT COALESCE(MAX(id), 0) FROM txn WHERE kind IN ({q})", DATA_KINDS).fetchone()[0]
+
+    def columns(self, table: str) -> list[str]:
+        return [r[1] for r in self.db.execute(f"PRAGMA table_info({table})")]
 
     def _txn(self, kind: str, role: str = "system", note: str = "") -> int:
         cur = self.db.execute("INSERT INTO txn(at, role, kind, note) VALUES(?, ?, ?, ?)",
@@ -544,13 +598,22 @@ class Store:
             out[no] = v
         return out
 
-    def export_xlsx(self, out: str | Path, cfg: dict) -> Path:
-        """원본 양식 그대로 — 헤더·칸 순서·칸 너비·레벨별 서식. 인명 칸은 비고, 맨 끝에 숨긴 UID 칸을 붙인다."""
+    def export_xlsx(self, out: str | Path, cfg: dict, module_uid: int | None = None) -> Path:
+        """원본 양식 그대로 — 헤더·칸 순서·칸 너비·레벨별 서식. 인명 칸은 비고, 맨 끝에 숨긴 UID 칸을 붙인다.
+
+        module_uid (S5 모듈별): 그 Lv1 아래 줄만. 번호(A열)·WBS 코드·선행·후속은 전체 판 값 그대로 (모듈 파일끼리 같은 번호),
+        둘째 시트 '밖 연결' 에 다른 모듈 업무와의 선행 연결을 적는다.
+        """
         out = Path(out)
         blob = self.meta("template")
         if not blob:
             raise ValueError("서식 틀이 없다 — 엑셀을 들여온 DB 가 아니다")
         m = self.model(cfg)
+        tasks = m.wbs.tasks
+        lv1 = module_of(m)
+        if module_uid is not None and module_uid not in {m.wbs.uids[n] for n in lv1.values()}:
+            raise ValueError(f"없는 모듈(Lv1): {module_uid}")
+        rows = [no for no in sorted(tasks) if module_uid is None or m.wbs.uids[lv1[no]] == module_uid]
         wb = load_workbook(BytesIO(blob))
         ws = wb.worksheets[0]
         hr = int(self.meta("header_row", 1))
@@ -563,8 +626,9 @@ class Store:
             del ws.row_dimensions[r]
         deepest = max(levels) if levels else None
         values = self._values(m, cfg)
-        for no, t in m.wbs.tasks.items():
-            r = hr + no
+        for i, no in enumerate(rows, start=1):
+            t = tasks[no]
+            r = hr + i
             styles, height = samples.get(t.level) or samples.get(deepest) or ([], None)
             vals = values[no]
             for c in range(1, ncol + 1):
@@ -575,13 +639,51 @@ class Store:
             ws.cell(r, uid_col).value = m.rows[no]["uid"]
             if height:
                 ws.row_dimensions[r].height = height
-        for r in range(hr + len(m.wbs.tasks) + 1, hr + len(levels) + 1):     # 업무가 본보기 줄보다 적을 때 남는 줄
+        for r in range(hr + len(rows) + 1, hr + len(levels) + 1):     # 업무가 본보기 줄보다 적을 때 남는 줄
             for c in range(1, ncol + 1):
                 ws.cell(r, c).value = None
         ws.cell(hr, uid_col).value = UID_HEADER
         ws.column_dimensions[get_column_letter(uid_col)].hidden = True
         if ws.auto_filter.ref:
-            ws.auto_filter.ref = f"A{hr}:{get_column_letter(max(ncol, uid_col))}{hr + len(m.wbs.tasks)}"
+            ws.auto_filter.ref = f"A{hr}:{get_column_letter(max(ncol, uid_col))}{hr + len(rows)}"
+        if module_uid is not None:
+            self._outside_sheet(wb, m, lv1, module_uid)
         out.parent.mkdir(parents=True, exist_ok=True)
         wb.save(out)
         return out
+
+    @staticmethod
+    def _outside_sheet(wb, m: Model, lv1: dict[int, int], module_uid: int) -> int:
+        """'밖 연결' 시트 — 이 모듈 업무와 다른 모듈 업무 사이의 선행 (번호는 전체 판 번호)."""
+        tasks, uids = m.wbs.tasks, m.wbs.uids
+        ws = wb.create_sheet("밖 연결")
+        ws.append(["방향", "이 모듈 번호", "WBS", "이름", "관계", "상대 번호", "상대 WBS", "상대 이름", "상대 모듈"])
+        n = 0
+        for e in m.edges:
+            a, b = uids[lv1[e.pred]] == module_uid, uids[lv1[e.succ]] == module_uid
+            if a == b:
+                continue
+            mine, other = (e.succ, e.pred) if b else (e.pred, e.succ)
+            rel = ("" if e.type == "FS" else e.type) + (e.lag_text or "")
+            ws.append(["들어옴 (상대가 선행)" if b else "나감 (상대가 후속)", mine, tasks[mine].wbs, tasks[mine].name, rel or "FS",
+                       other, tasks[other].wbs, tasks[other].name, tasks[lv1[other]].name])
+            n += 1
+        for col, w in zip("ABCDEFGHI", (18, 11, 12, 40, 10, 11, 12, 40, 20)):
+            ws.column_dimensions[col].width = w
+        ws.freeze_panes = "A2"
+        return n
+
+    @classmethod
+    def memory(cls) -> "Store":
+        """빈 메모리 DB (옛 판을 지금 코드로 읽을 때 — snapshot.open_snapshot)."""
+        return cls(":memory:")
+
+
+def module_of(m: Model) -> dict[int, int]:
+    """번호 → 그 업무의 Lv1 조상 번호 (자기가 Lv1 이면 자기)."""
+    tasks = m.wbs.tasks
+    out: dict[int, int] = {}
+    for no in sorted(tasks):                    # 앞에서부터 순서 = 부모가 먼저
+        p = tasks[no].parent
+        out[no] = no if p is None else out[p]
+    return out
