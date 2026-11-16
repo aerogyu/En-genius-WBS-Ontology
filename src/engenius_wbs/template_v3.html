@@ -7,15 +7,18 @@
 *{box-sizing:border-box}html,body{height:100%}body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 "Malgun Gothic","Apple SD Gothic Neo",sans-serif;display:flex;flex-direction:column}
 header{padding:8px 14px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
 header h1{font-size:16px;margin:0}.mut{color:var(--mut);font-size:12px}
-nav{display:flex;gap:4px;padding:6px 14px;border-bottom:1px solid var(--line)}nav button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:4px 10px;border-radius:6px;cursor:pointer}
+nav{display:flex;gap:4px;padding:6px 14px;border-bottom:1px solid var(--line);align-items:center}nav button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:4px 10px;border-radius:6px;cursor:pointer}
 nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+#paneTg{margin-left:auto;display:flex;gap:14px;align-items:center;font-size:12px;color:var(--mut)}#paneTg label{cursor:pointer;display:flex;gap:4px;align-items:center;white-space:nowrap}#paneTg label.hint{color:var(--acc);font-weight:bold}
+#gr.noTree #tree,#gr.noSide #side{display:none}
 section{display:none;flex:1;min-height:0}section.on{display:flex}
 #gr.on{flex-direction:row}
-#tree{width:280px;min-width:200px;border-right:1px solid var(--line);display:flex;flex-direction:column;background:var(--card)}
+#tree{width:310px;min-width:200px;border-right:1px solid var(--line);display:flex;flex-direction:column;background:var(--card)}
 #tree .bar{padding:6px 8px;border-bottom:1px solid var(--line);display:flex;gap:6px}#tree input[type=text]{flex:1}
 #treeBody{flex:1;overflow:auto;padding:4px 0}
 .tn{display:flex;align-items:center;gap:4px;padding:2px 6px;cursor:pointer;white-space:nowrap}.tn:hover{background:var(--bg)}.tn.cur{background:var(--sel)}
-.tn .tg{width:14px;color:var(--mut);text-align:center;flex:none}.tn .lv{color:var(--mut);font-size:10.5px;flex:none;width:26px}.tn .nm{overflow:hidden;text-overflow:ellipsis}.tn .ct{color:var(--mut);font-size:11px;margin-left:auto;padding-left:6px}
+.tn .tg{width:14px;color:var(--mut);text-align:center;flex:none}.tn .lv{color:var(--mut);font-size:10.5px;flex:none;width:26px}.tn .nm{overflow:hidden;text-overflow:ellipsis}.tn .ct{color:var(--mut);font-size:11px;margin-left:auto;padding-left:6px;min-width:44px;text-align:right;font-variant-numeric:tabular-nums;flex:none}.tn .mh{color:var(--mut);font-size:11px;width:62px;text-align:right;font-variant-numeric:tabular-nums;flex:none}
+.tn.tnh{position:sticky;top:-4px;z-index:1;background:var(--card);cursor:default;border-bottom:1px solid var(--line);color:var(--mut);font-size:11px;padding-top:3px;padding-bottom:3px}.tn.tnh:hover{background:var(--card)}
 .tn input{margin:0 2px 0 0}
 #hits div{padding:3px 8px;cursor:pointer;border-bottom:1px solid var(--line)}#hits div:hover{background:var(--bg)}#hits .p{color:var(--mut);font-size:11px;display:block}
 #main{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -44,7 +47,7 @@ select,input{background:var(--card);color:var(--fg);border:1px solid var(--line)
 .gr0.ghd{font-weight:bold;background:rgba(127,127,127,.07)}.gr0.on{background:var(--sel)}.gr0.up{color:var(--up)}.gr0.dn{color:var(--dn)}
 .gg .gh .gr0{height:28px;border:0;cursor:default;color:var(--mut);font-size:12px}
 #gantt svg text{font-size:11px}
-#legend{position:absolute;left:10px;bottom:8px;font-size:11px;color:var(--mut);background:var(--card);padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
+#legend{position:absolute;left:10px;bottom:8px;z-index:4;max-width:calc(100% - 150px);font-size:11px;color:var(--mut);background:var(--card);padding:2px 6px;border-radius:6px;border:1px solid var(--line);cursor:pointer}#legend .lgT{color:var(--acc)}#legend .lgB{display:none}#legend.open .lgB{display:inline}#legend.open .lgT{margin-right:6px}
 #zoom{position:absolute;right:18px;bottom:30px;z-index:5;display:flex;gap:4px}#zoom button{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;width:28px;height:28px;cursor:pointer}
 #now{padding:5px 12px;border-top:1px solid var(--line);font-size:12px;display:flex;gap:10px;align-items:center}#now .lnk{margin-left:auto;white-space:nowrap}
 #side{width:330px;min-width:260px;border-left:1px solid var(--line);overflow:auto;padding:10px 12px;background:var(--card)}
@@ -82,7 +85,7 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
 #co textarea{width:100%;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 6px;font:inherit}#co summary{cursor:pointer;margin:4px 0}
 </style></head><body>
 <header><h1>__TITLE__</h1><span class="mut" id="meta"></span></header>
-<nav><button data-t="gr" class="on">① 선후 관계 보기</button><button data-t="is">② 검사</button><button data-t="mh">③ 월별 공수</button><button data-t="cp">④ 주경로</button><button data-t="co" id="coTab" style="display:none" title="수정 요청 · 판 확정·비교 · 모듈별 엑셀 (서버)">⑤ 판·요청</button></nav>
+<nav><button data-t="gr" class="on">① 선후 관계 보기</button><button data-t="is">② 검사</button><button data-t="mh">③ 월별 공수</button><button data-t="cp">④ 주경로</button><button data-t="co" id="coTab" style="display:none" title="수정 요청 · 판 확정·비교 · 모듈별 엑셀 (서버)">⑤ 판·요청</button><span id="paneTg"><label id="tgTreeL" title="왼쪽에 WBS 구조 (트리 · 찾기 · 체크해 고르기) — 끄면 가운데가 넓어짐"><input type="checkbox" id="tgTree"> 왼쪽 WBS 구조</label><label id="tgSideL" title="오른쪽에 고른 업무의 상세 (선행·후속 · 가정 편집 · 줄 편집) — 끄면 가운데가 넓어짐. 글자가 파랗게 되면 고른 업무가 있음"><input type="checkbox" id="tgSide"> 오른쪽 업무 상세</label></span></nav>
 <section id="gr" class="on">
  <div id="tree"><div class="bar"><input type="text" id="q" placeholder="찾기: 번호 · WBS · 이름 일부"><button id="pickClear" title="트리 체크 모두 해제" style="font:inherit">체크 해제</button></div><div id="hits"></div><div id="treeBody"></div></div>
  <div id="main">
@@ -196,7 +199,7 @@ const $=id=>document.getElementById(id);
 const LVNAME={1:"구성품",2:"최상위 업무",3:"개발 단계",4:"기술 분야",5:"상위 기술 업무",6:"하위 기술 업무"};
 const PAL=["#4e79a7","#f28e2b","#59a14f","#e15759","#76b7b2","#edc948","#b07aa1","#ff9da7","#9c755f","#bab0ac","#1f77b4","#2ca02c","#d62728","#9467bd","#8c564b","#17becf"];
 $("meta").textContent=`${D.source} · 업무 ${D.tasks.length.toLocaleString()} · 선행 관계 ${D.edges.length.toLocaleString()} · 순환 ${D.cycles} · 사업 ${D.cp.start||"-"} ~ ${D.cp.end||"-"} · 주경로 ${D.cp.critical} · 문제 ${D.issues.length.toLocaleString()}`;
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));document.querySelectorAll("section").forEach(s=>s.classList.toggle("on",s.id===b.dataset.t));if(b.dataset.t==="mh")renderMH();if(b.dataset.t==="cp")renderCP();if(b.dataset.t==="co"&&window.COLLAB)COLLAB.render();if(b.dataset.t==="gr"){keepView=true;draw()}});
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));document.querySelectorAll("section").forEach(s=>s.classList.toggle("on",s.id===b.dataset.t));if(b.dataset.t==="mh")renderMH();if(b.dataset.t==="cp")renderCP();if(b.dataset.t==="co"&&window.COLLAB)COLLAB.render();$("paneTg").style.visibility=b.dataset.t==="gr"?"":"hidden";if(b.dataset.t==="gr"){keepView=true;draw()}});
 function anc(no,lv){let t=T.get(no);while(t&&t.lv>lv&&t.par!=null)t=T.get(t.par);return t?t.no:no}
 function ancExact(no,lv){const a=anc(no,lv);return T.get(a).lv===lv?a:null}
 function path(no){const p=[];let t=T.get(no);while(t){p.unshift(t);t=t.par!=null?T.get(t.par):null}return p}
@@ -211,8 +214,8 @@ function passLeaf(no){if(S.cp&&!cpc(no))return false;for(let l=1;l<=5;l++){const
 function deepestFilter(){let d=0;for(let l=1;l<=5;l++)if(S.f[l])d=l;return d}
 // ---- 트리 (누름 = 그 경로로 거르기, 체크 = 손으로 고르기) ----
 const open=new Set();
-function renderTree(){const el=$("treeBody");let h="";const rec=(list,d)=>{for(const no of list){const t=T.get(no),has=t.kids.length>0,o=open.has(no);
- h+=`<div class="tn" data-n="${no}" style="padding-left:${6+d*14}px"><span class="tg" data-tg="${no}">${has?(o?"▾":"▸"):"·"}</span><input type="checkbox" data-pk="${no}"${S.picks.has(no)?" checked":""} title="손으로 고르기"><span class="lv">Lv${t.lv}</span><span class="nm" title="${esc(t.wbs+" "+t.name)}">${esc(t.name)}</span><span class="ct">${LEAF.get(no).toLocaleString()}</span></div>`;
+function renderTree(){const el=$("treeBody"),E=emh();let h=`<div class="tn tnh"><span class="nm" style="padding-left:2px">WBS 구조</span><span class="ct" title="하위 업무 수">업무</span><span class="mh" title="Man Hours — 아래에 MH 가 적힌 업무가 있으면 아래 합, 없으면 자기 것 (③ 월별 공수와 같은 규칙)">MH</span></div>`;const rec=(list,d)=>{for(const no of list){const t=T.get(no),has=t.kids.length>0,o=open.has(no);
+ h+=`<div class="tn" data-n="${no}" style="padding-left:${6+d*14}px"><span class="tg" data-tg="${no}">${has?(o?"▾":"▸"):"·"}</span><input type="checkbox" data-pk="${no}"${S.picks.has(no)?" checked":""} title="손으로 고르기"><span class="lv">Lv${t.lv}</span><span class="nm" title="${esc(t.wbs+" "+t.name)}">${esc(t.name)}</span><span class="ct">${LEAF.get(no).toLocaleString()}</span><span class="mh">${E.v.get(no)?fmtMH(E.v.get(no)):""}</span></div>`;
  if(has&&o)rec(t.kids,d+1)}};rec(ROOTS,0);el.innerHTML=h;
  el.querySelectorAll(".tg").forEach(x=>x.onclick=ev=>{ev.stopPropagation();const n=+x.dataset.tg;open.has(n)?open.delete(n):open.add(n);renderTree()});
  el.querySelectorAll("input[data-pk]").forEach(x=>{x.onclick=ev=>ev.stopPropagation();x.onchange=()=>{const n=+x.dataset.pk;x.checked?S.picks.add(n):S.picks.delete(n);if(S.picks.size&&S.lane!=="pick"){S.lane="pick"}if(!S.picks.size&&S.lane==="pick")S.lane=0;S.sel=null;syncControls();draw()}});
@@ -265,7 +268,7 @@ function quickView(b){const q=b.dataset.q;S.sel=null;S.picks.clear();S.cp=q==="c
  if(q==="phase"){for(let l=1;l<=5;l++)S.f[l]=null;const n=firstName(3);S.f[3]=n?new Set([n]):null;S.grain=5;S.lane=4}
  else if(q==="disc"){for(let l=1;l<=5;l++)S.f[l]=null;const n=firstName(4);S.f[4]=n?new Set([n]):null;S.grain=5;S.lane=3}
  else if(q==="level"){for(let l=1;l<=5;l++)S.f[l]=null;S.grain=4;S.lane=0}
- else if(q==="picks"){for(let l=1;l<=5;l++)S.f[l]=null;S.lane=0;$("side").innerHTML='<div class="mut">왼쪽 트리에서 모아 볼 항목들을 체크하세요 — 레벨이 달라도 됩니다. 체크하면 줄이 "고른 항목별"로 바뀝니다.</div>'}
+ else if(q==="picks"){for(let l=1;l<=5;l++)S.f[l]=null;S.lane=0;if(!$("tgTree").checked)applyPanes(true,$("tgSide").checked,true);$("side").innerHTML='<div class="mut">왼쪽 트리에서 모아 볼 항목들을 체크하세요 — 레벨이 달라도 됩니다. 체크하면 줄이 "고른 항목별"로 바뀝니다.</div>'}
  syncControls();renderTree();draw();if(q==="phase")openPop(3,$("filters").querySelector('[data-l="3"]'));if(q==="disc")openPop(4,$("filters").querySelector('[data-l="4"]'))}
 // ---- 뭉치기 ----
 let G=null;
@@ -305,8 +308,8 @@ function edgeShown(e,sel,upS,dnS){if(S.lines==="off")return false;if(S.lines==="
 const LEGEND={gantt:'한 행 = 상자 하나 · 막대 = 실제 기간 (묶음은 하위 범위) · <span style="color:var(--hot)">빨강</span>/<span style="color:var(--near)">노랑</span> 막대 = 주경로/준주경로 · ▼ = 마일스톤 · 작은 ▽ = 그 아래 마일스톤 · <span style="color:var(--hot)">빨간 가는 선</span> = 엑셀 요약 날짜가 하위 범위와 다름 · 밖 = 범위 밖 선행 들어옴/나감 · 행/막대 누름 = 앞(보라)·뒤(초록) 사슬과 그 선 · 두 번 누름 = 그 안으로 · 빈 곳 두 번 누름 = 바깥으로 · 머리 행 누름 = 접기 · Ctrl+휠 = 가로 확대',
  time:'상자 = 이름표(왼쪽 끝 = 시작일) · 회색 띠 = 실제 기간 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록) · 두 번 누름 = 그 안으로 · 빈 곳 두 번 누름 = 바깥으로',
  flow:'선행 순서로 층 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 빨간 점선 = 뭉친 뒤 거꾸로 가는 선 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록)'};
-function draw(){build();$("legend").innerHTML=LEGEND[S.layout];const gm=S.layout==="gantt";$("gantt").style.display=gm?"block":"none";svg.style.display=gm?"none":"block";
- if(gm){$("axis").style.display="none";renderGantt();renderNow();if(S.sel!=null&&G.nodes.has(S.sel))renderNode(S.sel);else{S.sel=null;renderScope()}keepView=false;writeHash();return}
+function draw(){build();$("legend").innerHTML=`<span class="lgT" title="범례 펴기·접기">범례 ${$("legend").classList.contains("open")?"◂":"▸"}</span><span class="lgB">${LEGEND[S.layout]}</span>`;const gm=S.layout==="gantt";$("gantt").style.display=gm?"block":"none";svg.style.display=gm?"none":"block";
+ if(gm){$("axis").style.display="none";renderGantt();renderNow();if(S.sel!=null&&G.nodes.has(S.sel))renderNode(S.sel);else{S.sel=null;renderScope()}keepView=false;paneHint();writeHash();return}
  const nodes=[...G.nodes.values()],exts=[...G.ext.values()];let pos=new Map(),W=0,H=0,laneBands=[],axis=null,back=new Set();
  if(nodes.length){if(S.layout==="time")({W,H,laneBands,axis}=layoutTime(nodes,exts,pos));else({W,H,back}=layoutFlow(nodes,exts,pos))}
  drawn={w:Math.max(W,400),h:Math.max(H,200)};
@@ -333,7 +336,7 @@ function draw(){build();$("legend").innerHTML=LEGEND[S.layout];const gm=S.layout
   else if(P.band)s+=`<rect x="${P.x+1}" y="${P.y+P.h-8}" width="${Math.max(2,P.band-2)}" height="7" rx="2" fill="var(--band)"/>`;
   P.lines.forEach((ln,i)=>{s+=`<text x="${P.tx}" y="${P.y+14+i*15}" font-size="12" fill="currentColor">${esc(ln)}</text>`});
   if(P.sub)s+=`<text x="${P.tx}" y="${P.y+14+P.lines.length*15}" font-size="10.5" fill="var(--mut)">${esc(P.sub)}</text>`;
-  s+=`<title>${esc(n.t.wbs+" "+n.t.name+"\n"+pathText(n.id)+"\n"+(n.t.st||"-")+" ~ "+(n.t.fi||"-")+" · 하위 업무 "+n.leaves+" · MH "+Math.round(n.mh).toLocaleString())}</title></g>`}
+  s+=`<title>${esc(n.t.wbs+" "+n.t.name+"\n"+pathText(n.id)+"\n"+(n.t.st||"-")+" ~ "+(n.t.fi||"-")+" · 하위 업무 "+n.leaves+mhSub(n))}</title></g>`}
  for(const x of exts){const P=pos.get(x.id);if(!P)continue;let cls="nd";if(sel!=null&&!upS.has(x.id)&&!dnS.has(x.id))cls+=" dim";
   s+=`<g class="${cls}" data-x="${x.key}"><rect x="${P.x}" y="${P.y}" width="${P.w}" height="${P.h}" rx="5" fill="var(--bg)" stroke="var(--mut)" stroke-dasharray="4 3"/>`;
   P.lines.forEach((ln,i)=>{s+=`<text x="${P.x+8}" y="${P.y+14+i*14}" font-size="11" fill="var(--mut)">${esc(ln)}</text>`});s+=`<title>${esc((x.ext==="in"?"거른 범위 밖에서 옴: ":"거른 범위 밖으로 감: ")+pathText(x.key)+"\n"+x.count+"건 — 두 번 누르면 그쪽으로")}</title></g>`}
@@ -342,8 +345,9 @@ function draw(){build();$("legend").innerHTML=LEGEND[S.layout];const gm=S.layout
  svg.querySelectorAll("g[data-x]").forEach(g=>{g.ondblclick=ev=>{ev.stopPropagation();pathFilter(+g.dataset.x)}});
  svg.onclick=()=>{if(dragged)return;if(S.sel!=null){S.sel=null;keepView=true;draw()}};svg.ondblclick=()=>{if(!dragged)goUp()};
  renderNow();if(sel!=null)renderNode(sel);else renderScope();
- if(!keepView)fit();keepView=false;writeHash()}
-function nodeBox(n,maxW){const lines=wrap(n.t.name,maxW-16),w=Math.max(90,Math.min(maxW,Math.max(...lines.map(tw))+16)),sub=`${n.t.dur??"-"}일${n.leaves>1?" · 하위 "+n.leaves:""}`;return{lines,w,h:14+lines.length*15+6+(sub?12:0),sub}}
+ if(!keepView)fit();keepView=false;paneHint();writeHash()}
+const mhSub=n=>(m=>m?" · MH "+fmtMH(m):"")(emh().v.get(n.id));   // 상자 아래 줄 MH (간트 MH 열과 같은 값)
+function nodeBox(n,maxW){const lines=wrap(n.t.name,maxW-16),sub=`${n.t.dur??"-"}일${n.leaves>1?" · 하위 "+n.leaves:""}${mhSub(n)}`,w=Math.max(90,Math.min(maxW,Math.max(...lines.map(tw))+16),tw(sub)*10.5/12+16);return{lines,w,h:14+lines.length*15+6+(sub?12:0),sub}}
 function layoutTime(nodes,exts,pos){const dated=nodes.filter(n=>n.t.st&&n.t.fi);const d0=dated.length?Math.min(...dated.map(n=>dateNum(n.t.st))):0,d1=dated.length?Math.max(...dated.map(n=>dateNum(n.t.fi))):30;
  const LABELW=G.lanes.length?Math.max(60,...G.lanes.map(l=>tw(laneLabel(l))+22)):12,INW=exts.some(x=>x.ext==="in")?236:0,RIGHT=exts.some(x=>x.ext==="out")?240:40;
  const LEFT=LABELW+INW+12,span=Math.max(30,d1-d0),pxPerDay=Math.max(0.6,Math.min(6,1400/span)),TOP=34;
@@ -351,7 +355,7 @@ function layoutTime(nodes,exts,pos){const dated=nodes.filter(n=>n.t.st&&n.t.fi);
  groups.forEach((grp,gi)=>{if(!grp.length)return;
   const rows=[],sorted=grp.slice().sort((a,b)=>(a.t.st?dateNum(a.t.st):-1e9)-(b.t.st?dateNum(b.t.st):-1e9)),y0=y;
   for(const n of sorted){const has=!!(n.t.st&&n.t.fi);const x=has?X(dateNum(n.t.st)):LEFT,durPx=has?Math.max(6,(dateNum(n.t.fi)-dateNum(n.t.st)+1)*pxPerDay):0;
-   const sub=has?`${n.t.st} ~ ${n.t.fi} · ${n.t.dur??"-"}일${n.leaves>1?" · 하위 "+n.leaves:""}`:"날짜 없음";
+   const sub=has?`${n.t.st} ~ ${n.t.fi} · ${n.t.dur??"-"}일${n.leaves>1?" · 하위 "+n.leaves:""}${mhSub(n)}`:"날짜 없음"+mhSub(n);
    const lines=wrap(n.t.name,Math.max(durPx,220)-14),textW=Math.max(tw(sub)*10.5/12,...lines.map(tw))+16,w=Math.max(durPx,textW,60),h=14+lines.length*15+18;
    let r=0;while(rows[r]!=null&&rows[r]>x-8)r++;rows[r]=x+w;const yy=y0+22+r*(h+8);
    pos.set(n.id,{x,y:yy,w,h,lines,tx:x+10,band:durPx,sub});y=Math.max(y,yy+h)}
@@ -390,16 +394,17 @@ function renderGantt(){const g=$("gantt"),keep=keepView,st0=g.scrollTop,sl0=g.sc
  const groups=S.lane?G.lanes.map(k=>({key:k,items:nodes.filter(n=>n.lane===k).sort(ord)})).filter(x=>x.items.length):[{key:"",items:nodes.slice().sort(ord)}];
  const rows=[];for(const gr of groups){if(S.lane)rows.push({hdr:gr});if(!S.lane||!COLLAPSED.has(gr.key))for(const n of gr.items)rows.push({n})}
  const dated=nodes.filter(n=>n.t.st&&n.t.fi),d0=dated.length?Math.min(...dated.map(n=>dateNum(n.t.st))):0,d1=dated.length?Math.max(...dated.map(n=>dateNum(n.t.fi))):30,span=Math.max(30,d1-d0+1);
- const NW=Math.round(Math.min(380,Math.max(160,...nodes.map(n=>tw(n.t.name)+18)))),cols=[86,NW,84,84,54,54,70],TW=cols.reduce((a,b)=>a+b,0);
+ const NW=Math.round(Math.min(380,Math.max(160,...nodes.map(n=>tw(n.t.name)+18)))),cols=[86,NW,84,84,54,66,54,70],TW=cols.reduce((a,b)=>a+b,0);GTW=TW+40;const E=emh();
  if(S.ppd==null)S.ppd=Math.max(0.05,(g.clientWidth-TW-40)/span);const ppd=S.ppd,BW=Math.ceil(span*ppd)+40,X=d=>10+(d-d0)*ppd;
  const sel=S.sel,{upS,dnS}=chainSets(sel),rowOf=new Map();rows.forEach((r,i)=>{if(r.n)rowOf.set(r.n.id,i)});
  const tmpl=`grid-template-columns:${cols.map(c=>c+"px").join(" ")}`;
  // 왼쪽 표
- let L=`<div class="gr0" style="${tmpl}"><span>WBS</span><span>작업 이름</span><span>시작</span><span>완료</span><span>기간</span><span title="총 여유 (평일, 엑셀 날짜 기준) — 묶음은 그 아래 최소 · 빨강 = 주경로 · 노랑 = 준주경로">여유</span><span title="거른 범위 밖에서 들어오는 선행 ← · 밖으로 나가는 선행 →">밖 ←/→</span></div>`,R="";
- const left=[];for(const r of rows){if(r.hdr){const k=r.hdr.key;left.push(`<div class="gr0 ghd" data-h="${esc(k)}" style="grid-template-columns:${TW}px"><span><span style="color:${laneColor(k)}">${COLLAPSED.has(k)?"▸":"▾"}</span> ${esc(laneLabel(k))} <span class="mut">(${r.hdr.items.length})</span></span></div>`);continue}
+ let L=`<div class="gr0" style="${tmpl}"><span>WBS</span><span>작업 이름</span><span>시작</span><span>완료</span><span>기간</span><span title="Man Hours — 이 업무 전체. 묶음은 아래 합 (아래에 MH 가 적힌 업무가 있으면 아래 것만 — ③ 월별 공수와 같은 규칙) · 빨강 = 엑셀에 적힌 요약 MH 가 하위 합과 다름 (C12) · 파랑 = 가정 편집함" style="text-align:right">MH</span><span title="총 여유 (평일, 엑셀 날짜 기준) — 묶음은 그 아래 최소 · 빨강 = 주경로 · 노랑 = 준주경로">여유</span><span title="거른 범위 밖에서 들어오는 선행 ← · 밖으로 나가는 선행 →">밖 ←/→</span></div>`,R="";
+ const left=[];for(const r of rows){if(r.hdr){const k=r.hdr.key;left.push(`<div class="gr0 ghd" data-h="${esc(k)}" style="grid-template-columns:${TW}px"><span><span style="color:${laneColor(k)}">${COLLAPSED.has(k)?"▸":"▾"}</span> ${esc(laneLabel(k))} <span class="mut">(${r.hdr.items.length})${(m=>m?" · MH "+fmtMH(m):"")(r.hdr.items.reduce((a,n)=>a+(E.v.get(n.id)||0),0))}</span></span></div>`);continue}
   const n=r.n,t=n.t,cls=n.id===sel?" on":upS.has(n.id)?" up":dnS.has(n.id)?" dn":"";
+  const {v:mhv,c12}=mhOf(n.id),mhEd=!t.kids.length&&t.mh!==t.mh0;
   const sp=SPAN.get(n.id),c11=sp&&t.st&&t.fi&&(sp[0]!==t.st||sp[1]!==t.fi),c11t=c11?` style="color:var(--hot)" title="엑셀 날짜 — 하위 업무 범위 ${sp[0]} ~ ${sp[1]} 와 다름 (C11)"`:"";
-  left.push(`<div class="gr0${cls}" data-n="${n.id}" style="${tmpl}" title="${esc(pathText(n.id))}"><span class="num" style="text-align:left">${esc(t.wbs)}</span><span>${ED.has(n.id)?'<span class="mv" title="가정 편집함">✎</span> ':""}${t.ms?"▼ ":""}${esc(t.name)}</span><span class="num${t.st!==t.st0?" mv":""}"${c11t}${t.st!==t.st0?` title="원래 ${t.st0}"`:""}>${t.st||""}</span><span class="num${t.fi!==t.fi0?" mv":""}"${c11t}${t.fi!==t.fi0?` title="원래 ${t.fi0}"`:""}>${t.fi||""}</span><span class="num">${t.dur??""}</span><span class="num" style="${cpc(n.id)===2?"color:var(--hot);font-weight:bold":cpc(n.id)?"color:var(--near);font-weight:bold":""}">${fmtD(SCH.fl.get(n.id))}</span><span class="num" title="거른 범위 밖에서 들어오는 선행 ${n.xin} · 밖으로 나가는 선행 ${n.xout} — 누르면 오른쪽 패널에 원본 행">${n.xin||n.xout?`←${n.xin} ${n.xout}→`:""}</span></div>`)}
+  left.push(`<div class="gr0${cls}" data-n="${n.id}" style="${tmpl}" title="${esc(pathText(n.id))}"><span class="num" style="text-align:left">${esc(t.wbs)}</span><span>${ED.has(n.id)?'<span class="mv" title="가정 편집함">✎</span> ':""}${t.ms?"▼ ":""}${esc(t.name)}</span><span class="num${t.st!==t.st0?" mv":""}"${c11t}${t.st!==t.st0?` title="원래 ${t.st0}"`:""}>${t.st||""}</span><span class="num${t.fi!==t.fi0?" mv":""}"${c11t}${t.fi!==t.fi0?` title="원래 ${t.fi0}"`:""}>${t.fi||""}</span><span class="num">${t.dur??""}</span><span class="num${mhEd?" mv":""}"${c12?` style="color:var(--hot)" title="엑셀에 적힌 MH ${fmtMH(t.mh)} — 하위 합 ${fmtMH(mhv)} 와 다름 (C12)"`:mhEd?` title="원래 ${t.mh0==null?"-":fmtMH(t.mh0)}"`:""}>${mhv?fmtMH(mhv):""}</span><span class="num" style="${cpc(n.id)===2?"color:var(--hot);font-weight:bold":cpc(n.id)?"color:var(--near);font-weight:bold":""}">${fmtD(SCH.fl.get(n.id))}</span><span class="num" title="거른 범위 밖에서 들어오는 선행 ${n.xin} · 밖으로 나가는 선행 ${n.xout} — 누르면 오른쪽 업무 상세에 원본 행">${n.xin||n.xout?`←${n.xin} ${n.xout}→`:""}</span></div>`)}
  // 위 눈금
  const ticks=[];const yr0=new Date(d0*864e5).getUTCFullYear(),yr1=new Date(d1*864e5).getUTCFullYear();const monthStep=ppd*30>60?1:ppd*30>20?3:12;
  for(let y=yr0;y<=yr1+1;y++)for(let m=0;m<12;m+=monthStep){const d=Date.UTC(y,m,1)/864e5;if(d<d0-31||d>d1+31)continue;ticks.push({x:X(d),label:m===0?String(y):`${String(m+1).padStart(2,"0")}`,major:m===0})}
@@ -465,6 +470,22 @@ $("copyLink").onclick=()=>{writeHash();const url=location.href;const done=()=>{$
  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt("이 주소를 복사하세요",url));else prompt("이 주소를 복사하세요",url)};
 // ---- 패널 ----
 function fmtMH(v){return Math.round(v).toLocaleString()}
+// 업무별 MH — ③ 월별 공수(파이썬 workload.py)와 같은 규칙: 아래에 MH 가 적힌 업무가 있으면 아래 합, 없으면 자기 것. below = 아래에 적힌 것이 있음 (C12 비교용)
+let EMHC=null;
+function emh(){if(EMHC)return EMHC;const v=new Map(),below=new Map();const rec=no=>{const t=T.get(no);let s=0,any=false;for(const k of t.kids){rec(k);s+=v.get(k);if(below.get(k)||T.get(k).mh)any=true}below.set(no,any);v.set(no,any?s:(t.mh||0))};ROOTS.forEach(rec);EMHC={v,below};return EMHC}
+function mhOf(no){const E=emh(),t=T.get(no),v=E.v.get(no)||0;return{v,c12:!!(t.kids.length&&t.mh&&E.below.get(no)&&Math.abs(t.mh-v)>Math.max(0.5,Math.abs(t.mh)*1e-6))}}
+// 왼쪽 WBS 구조 · 오른쪽 업무 상세 — 체크할 때만 보임 (가운데를 넓게). 이 브라우저에 기억 (보기 주소에는 넣지 않음)
+const PANEKEY="engenius-wbs-panes";let GTW=0;
+function paneHint(){$("tgSideL").classList.toggle("hint",S.sel!=null&&!$("tgSide").checked)}
+function applyPanes(tree,side,save){const gr=$("gr");$("tgTree").checked=tree;$("tgSide").checked=side;gr.classList.toggle("noTree",!tree);gr.classList.toggle("noSide",!side);paneHint();
+ if(save)try{localStorage.setItem(PANEKEY,JSON.stringify({tree:tree?1:0,side:side?1:0}))}catch(e){}}
+function togglePanes(){closePop();const g=$("gantt"),a0=g.clientWidth-GTW,r0=svg.getBoundingClientRect();applyPanes($("tgTree").checked,$("tgSide").checked,true);
+ if(!$("gr").classList.contains("on"))return;
+ if(S.layout==="gantt"){const a1=g.clientWidth-GTW;if(S.ppd&&a0>40&&a1>40)S.ppd*=a1/a0;else S.ppd=null;keepView=true;draw()}   // 확대 비율 유지 — 맞춤이었으면 새 폭에 맞춤
+ else{const r1=svg.getBoundingClientRect();if(r0.width>10&&r1.width>10&&r0.height>10){VB.w*=r1.width/r0.width;VB.h*=r1.height/r0.height;setVB()}else fit()}}
+$("tgTree").onchange=togglePanes;$("tgSide").onchange=togglePanes;
+$("legend").onclick=ev=>{ev.stopPropagation();const L=$("legend");L.classList.toggle("open");L.querySelector(".lgT").textContent="범례 "+(L.classList.contains("open")?"◂":"▸")};$("legend").ondblclick=ev=>ev.stopPropagation();   // 범례는 접어 둠 — 간트 아래 행을 가리지 않게
+{let p={tree:0,side:0};try{p=Object.assign(p,JSON.parse(localStorage.getItem(PANEKEY)||"{}"))}catch(e){}applyPanes(!!p.tree,!!p.side,false)}
 function renderScope(){const ds=[...G.nodes.values()].map(n=>n.t.st).filter(Boolean).sort(),de=[...G.nodes.values()].map(n=>n.t.fi).filter(Boolean).sort();
  const hand=[...G.handoff.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10).map(([k,v])=>{const [a,b]=k.split(">");return `<tr><td>${esc(laneLabel(a))} → ${esc(laneLabel(b))}</td><td>${v}</td></tr>`}).join("");
  const cpl=G.leafList.filter(no=>cpc(no)===2).sort((a,b)=>SCH.val.get(2*a)-SCH.val.get(2*b)),npl=G.leafList.filter(no=>cpc(no)===1).length;
@@ -487,7 +508,7 @@ function renderNode(no){const t=T.get(no),n=G.nodes.get(no);const under=x=>anc(x
  const iss=D.issues.filter(i=>i[3]===no).map(i=>`<div class="${i[1]==="오류"?"err":""}">${i[0]} ${esc(i[2])}${i[5]?" — "+esc(i[5]):""}</div>`).join("");
  let h=`<h3>${t.no} · ${esc(t.name)} <span class="pill">Lv${t.lv}</span>${cpc(no)===2?'<span class="pill" style="background:var(--hot);color:#fff">주경로</span>':cpc(no)?'<span class="pill" style="background:var(--near);color:#000">준주경로</span>':""}</h3><div class="mut">${esc(t.wbs)} · ${esc(path(no).slice(0,-1).map(x=>x.name).join(" › "))}</div>
  <table><tr><td>기간</td><td>${t.dur??"-"}일 · ${t.st||"-"} ~ ${t.fi||"-"}</td></tr><tr><td>총 여유</td><td>${SCH.fl.has(no)?fmtD(SCH.fl.get(no))+" 평일"+(t.kids.length?" (그 아래 하위 업무 최소)":""):"날짜 없음"}</td></tr><tr><td>앞쪽·뒤쪽 전체</td><td>${t.up} · ${t.dn}</td></tr>
- ${n?`<tr><td>하위 업무</td><td>${n.leaves} · MH ${fmtMH(n.mh)}</td></tr>`:""}${t.staff!=null?`<tr><td>투입인력</td><td>${t.staff}</td></tr>`:""}${t.del?`<tr><td>산출물</td><td>${esc(t.del)}</td></tr>`:""}</table>`;
+ ${n?`<tr><td>하위 업무</td><td>${n.leaves}</td></tr>`:""}${(m=>`<tr><td>MH</td><td>${m.v?fmtMH(m.v):"-"}${m.c12?` <span class="err">엑셀에 적힌 ${fmtMH(t.mh)} — 하위 합과 다름 (C12)</span>`:""}</td></tr>`)(mhOf(no))}${t.staff!=null?`<tr><td>투입인력</td><td>${t.staff}</td></tr>`:""}${t.del?`<tr><td>산출물</td><td>${esc(t.del)}</td></tr>`:""}</table>`;
  const spn=SPAN.get(no);if(spn)h=h.replace("</table>",`<tr><td>하위 범위</td><td>${spn[0]} ~ ${spn[1]}${t.st&&(spn[0]!==t.st||spn[1]!==t.fi)?' <span class="err">엑셀 날짜와 다름 (C11)</span>':""}</td></tr></table>`);
  const msl=MSU.get(no)||[];if(msl.length)h+=`<h3>그 아래 마일스톤 (${msl.length})</h3><div style="font-size:12px">${msl.slice(0,30).map(m=>`▼ ${T.get(m).st||"-"} <span class="lnk" data-n="${m}">${esc(T.get(m).name)}</span>`).join("<br>")}${msl.length>30?`<br>… ${msl.length-30}개 더`:""}</div>`;
  if(t.kids.length)h+=`<div style="margin:6px 0"><span class="lnk" data-s="${no}">이 안으로 들어가기 (${t.kids.length}개)</span> · <span class="lnk" data-pk="${no}">트리 체크에 더하기</span></div>`;
@@ -667,7 +688,7 @@ function edRecompute(){
   if(Math.abs(val.get(k)-BASE.val.get(k))<1e-9&&Math.abs(val.get(k+1)-BASE.val.get(k+1))<1e-9)continue;
   if(t.kids.length){const o=SPAN0.get(t.no);if(!o||o[0]!==t.st0||o[1]!==t.fi0)continue}   // C11: 엑셀 요약 날짜를 손으로 잡은 것 — 그대로
   const f=val.get(k+1),s0=val.get(k);t.st=f-s0<1e-9?fDate(f):sDate(s0);t.fi=fDate(f);MOVED[t.no]=[t.st,t.fi]}
- SPAN.clear();sp(ROOTS);MHC=null;edSave();edChip()}
+ SPAN.clear();sp(ROOTS);MHC=null;EMHC=null;edSave();edChip()}
 let MHB0=null;(()=>{const below=new Map();const post=no=>{const t=T.get(no);let any=false,sum=0;for(const k of t.kids){post(k);const kt=T.get(k);if(below.get(k)!=null){sum+=below.get(k);any=true}else if(kt.mh){sum+=kt.mh;any=true}}if(any)below.set(no,sum)};
  ROOTS.forEach(post);MHB0=below})();
 function edChanges(){const out=[];for(const [no,e] of ED){const t=T.get(no),b={no,wbs:t.wbs};
@@ -709,7 +730,7 @@ function bindEdForm(no){PICK.bind($("side"));ROWS.bind(no);
   const nm=$("edNm").value.trim();if(nm&&nm!==t.name0)e.name=nm;if(ED.get(no)?.fix_relax)e.fix_relax=true;
   EDLOAD=0;if(Object.keys(e).length)ED.set(no,e);else ED.delete(no);edRecompute();keepView=true;draw()};
  const un=$("edUndo");if(un)un.onclick=()=>{EDLOAD=0;ED.delete(no);edRecompute();keepView=true;draw()}}
-function edBox(){if(!ED.size)return `<div class="mut" style="font-size:12px;margin-bottom:8px">✎ 가정 편집 — 간트에서 하위 업무를 고르고 오른쪽 패널에서 기간·시작·선행을 바꾸면 날짜와 주경로를 바로 다시 계산합니다.</div>`+(D.server?SRV.histBox():"");
+function edBox(){if(!ED.size)return `<div class="mut" style="font-size:12px;margin-bottom:8px">✎ 가정 편집 — 간트에서 하위 업무를 고르고 ‘오른쪽 업무 상세’ 를 켜서 기간·시작·선행을 바꾸면 날짜와 주경로를 바로 다시 계산합니다.</div>`+(D.server?SRV.histBox():"");
  const d=Math.round(SCH.end-SCH0.end),ch=edChanges(),lab={duration:"기간",start:"시작",preds:"선행",name:"이름",man_hours:"MH",staff:"투입인력",fix_relax:"느슨함"};
  let h=`<div class="edbox"><b>✎ 가정 편집 ${ED.size}업무</b><div style="font-size:12px">사업 완료 ${fDate(SCH0.end)} → <b>${fDate(SCH.end)}</b> (${d>0?"+":""}${d} 평일) · 날짜 바뀐 업무 ${Object.keys(MOVED).length.toLocaleString()}</div>`;
  for(const [no] of ED){const xs=ch.filter(c=>c.no===no).map(c=>`${lab[c.field]} ${c.from??"-"}→${c.to??"-"}`).join(" · ");h+=`<div class="it"><span class="lnk" data-n="${no}">${no}</span><span>${esc(T.get(no).name)}: ${esc(xs)}</span><span class="x" data-x="${no}" title="되돌리기">✕</span></div>`}

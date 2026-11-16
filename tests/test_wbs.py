@@ -229,7 +229,8 @@ def test_small_outputs(small, tmp_path):
                   'id="copyLink"', 'data-v="gantt"', 'id="lines"', 'id="gantt"', '"source":"small.xlsx"',
                   'data-t="mh"', 'id="mhChart"', 'id="mhComp"', 'id="msk"', '"mh":{"months":',
                   'data-t="cp"', 'id="cpList"', 'id="cpGrp"', 'data-q="cp"', '"cp":{"crit_days":0',
-                  'id="edChip"', 'function reschedule(', 'function edDownload(', '"sha256":"', '"units":{'):
+                  'id="edChip"', 'function reschedule(', 'function edDownload(', '"sha256":"', '"units":{',
+                  'id="tgTree"', 'id="tgSide"', 'function emh(', 'function mhOf('):   # 양옆 켜고 끄기 · 업무별 MH (보기 v3.3)
         assert piece in text, piece
 
 
