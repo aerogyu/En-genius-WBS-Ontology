@@ -232,7 +232,8 @@ def test_small_outputs(small, tmp_path):
                   'id="edChip"', 'function reschedule(', 'function edDownload(', '"sha256":"', '"units":{',
                   'id="tgTree"', 'id="tgSide"', 'function emh(', 'function mhOf(',     # 양옆 켜고 끄기 · 업무별 MH (보기 v3.3)
                   'id="pend"', 'id="pendSave"', 'id="shiftBtn"', 'id="shiftDlg"', 'function shiftPlan(', 'id="mQuick"', 'id="mOpt"',
-                  'id="dragTip"', 'const GDRAG=', 'function ghostAt(', 'class="ghint"'):   # 저장 막대 · 일정 옮기기 · 접은 메뉴 (v0.6)
+                  'id="dragTip"', 'const GDRAG=', 'function ghostAt(', 'class="ghint"',
+                  'id="q2"', 'function findTasks(', 'function ganttPaint(', 'id="edDl"', 'id="edSf"'):   # 저장 막대 · 일정 옮기기 · 접은 메뉴 (v0.6)
         assert piece in text, piece
 
 

@@ -40,11 +40,11 @@ python -m pytest                                                     # scripts\s
 1. GitHub `aerogyu/En-genius-WBS-Ontology` → **Code → Download ZIP** (`En-genius-WBS-Ontology-main.zip`, 약 1 MB — 합성 WBS 엑셀 포함) → 반입.
 2. 풀어서 **Tool 온톨로지와 같은 부모 폴더**에 둔다 — 예: `C:\EnGenius\engenius-wbs-ontology` (옆에 `C:\EnGenius\engenius-tool-ontology` 가 있어야 한다).
    다른 곳이면 `scripts\env.bat` 의 `TOOL_ONTO_DIR` 를 Tool 온톨로지 폴더로 고친다. 따로 설치할 것 없음 (그쪽 `.venv` 를 쓴다).
-3. `scripts\selftest.bat` 더블클릭 → `87 passed` · `rc=0`.
+3. `scripts\selftest.bat` 더블클릭 → `89 passed` · `rc=0`.
 4. WBS 엑셀(.xlsx — 첫 시트를 읽는다)을 `scripts\build.bat` 위에 끌어다 놓기 → 출력 폴더의 `wbs_view.html`(브라우저)·`report.xlsx`.
    WBS 가 첫 시트가 아니면: `scripts\env.bat` 실행 뒤 `"%PY%" -m engenius_wbs build <파일> --sheet <시트 이름>`.
 5. `P01 헤더를 찾지 못함` 이면 헤더 문구가 별칭에 없다 → `config\wbs.yaml` 을 `data\real\config\wbs.yaml` 로 복사해 `columns` 에 그 문구를 더한다.
-6. **WBS 고치기 (가정 편집)**: 보기에서 업무를 고르고 아래 줄의 '상세·고치기'(또는 탭 줄 오른쪽 '오른쪽 업무 상세') → '✎ 고치기' 에서 기간·시작·선행·이름·MH 를 바꾸면
+6. **WBS 고치기 (가정 편집)**: 보기에서 업무를 고르고(① 탭 윗줄 '업무 찾기' 칸으로도 찾는다 — 이름·WBS·번호, 낱말 여러 개로 좁힘) 아래 줄의 '상세·고치기'(또는 탭 줄 오른쪽 '오른쪽 업무 상세') → '✎ 고치기' 에서 기간·시작·선행·이름·MH·투입인력·산출물을 바꾸면
    날짜·주경로가 바로 다시 계산된다 (고친 것은 브라우저에 남아 다시 열어도 그대로). **일정 옮기기**: 조작 줄의 '⇄ 일정 옮기기' 로 전체 사업이나 고른 묶음을
    평일 수만큼 통째로 늦추거나 당긴다 (기간·선행은 그대로 — docs/06). 간트 막대를 좌우로 끌어도 그 창에 값이 채워진다 ('미리 보기' 를 눌러야 그림에 반영). 고친 것이 있으면 탭 줄 아래 **저장 막대**가 뜬다 — '변경 목록 내려받기' → 받은 `.json` 과
    **원본 WBS 엑셀을 함께** `scripts\apply.bat` 위에 끌어다 놓기 (서버로 쓸 때는 같은 막대의 '서버에 저장')

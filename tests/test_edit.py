@@ -93,6 +93,45 @@ def test_saved_change_reaches_exported_excel(two):
     assert not [i for i in analyze(w, CFG).issues if i.code in ("C05", "C11", "C12")]
 
 
+def test_staff_and_deliverables(two):
+    """투입인력·산출물 (v0.7) — 날짜와 무관한 칸. 하위 업무·요약 모두 고칠 수 있고 이력·내보낸 엑셀·판 비교에 보인다."""
+    from engenius_wbs import snapshot
+    st, R, tmp = two
+    before = dates(st)
+    mem = snapshot.open_snapshot(st, snapshot.freeze(st, CFG, R["admin"], "앞")["id"])
+    u5, u7 = uid(st, 5), uid(st, 7)                                # 5 = 요약 '성능 해석'(산출물 2개) · 7 = 하위 업무 B(투입인력 2)
+    assert st.model(CFG).wbs.tasks[5].deliverables == ["성능 보고서", "검토 자료"]
+    res = apply_edits(st, CFG, R["fan"], st.rev(), [{"uid": u5, "deliverables": "성능 보고서; 검토 자료; 시험 계획", "staff": 3},
+                                                    {"uid": u7, "staff": 4.5, "deliverables": "해석 결과"}])
+    assert res["tasks"] == 2 and res["cells"] == 4 and res["moved"] == 0 and dates(st) == before
+    m = st.model(CFG)
+    assert m.wbs.tasks[5].deliverables == ["성능 보고서", "검토 자료", "시험 계획"] and m.wbs.tasks[5].staff == 3
+    assert m.wbs.tasks[7].deliverables == ["해석 결과"] and m.wbs.tasks[7].staff == 4.5
+    h = history(st, CFG)[0]
+    assert {(c["no"], c["label"]) for c in h["changes"]} == {(5, "산출물"), (5, "투입인력"), (7, "산출물"), (7, "투입인력")}
+    ws = load_workbook(st.export_xlsx(tmp / "out.xlsx", CFG)).active
+    row = {ws.cell(r, 1).value: r for r in range(2, ws.max_row + 1)}
+    assert ws.cell(row[5], 11).value == "성능 보고서, 검토 자료, 시험 계획" and ws.cell(row[5], 9).value == 3      # 첫 구분자(,)로 적는다
+    assert ws.cell(row[7], 11).value == "해석 결과" and ws.cell(row[7], 9).value == 4.5
+    c = snapshot.compare(mem, st, CFG)["counts"]
+    assert (c["staff"], c["deliverables"], c["changed"], c["dates"]) == (2, 2, 2, 0)
+    # 같은 값 = 바뀐 칸 없음 · 지우기 · 잘못된 값 · 남의 모듈
+    with pytest.raises(EditError) as x:
+        apply_edits(st, CFG, R["fan"], st.rev(), [{"uid": u7, "staff": 4.5, "deliverables": " 해석 결과 "}])
+    assert x.value.kind == "invalid"
+    apply_edits(st, CFG, R["admin"], st.rev(), [{"uid": u7, "staff": None, "deliverables": ""}])
+    t7 = st.model(CFG).wbs.tasks[7]
+    assert t7.staff is None and t7.deliverables == []
+    for bad in ({"staff": -1}, {"staff": "3"}, {"deliverables": ["a"]}, {"deliverables": "x" * 400}):
+        with pytest.raises(EditError):
+            apply_edits(st, CFG, R["admin"], st.rev(), [{"uid": u7, **bad}])
+    with pytest.raises(EditError) as x:
+        apply_edits(st, CFG, R["hpc"], st.rev(), [{"uid": u7, "staff": 1}])
+    assert x.value.kind == "denied"
+    with pytest.raises(EditError):                                     # 요약의 기간·MH 는 여전히 못 고친다
+        apply_edits(st, CFG, R["admin"], st.rev(), [{"uid": u5, "man_hours": 10}])
+
+
 def test_permissions(two):
     st, R, _ = two
     for who, no in (("view", 7), ("fan", 19), ("hpc", 7), ("fan", 1)):          # 조회자 · 남의 모듈 · Lv1 줄

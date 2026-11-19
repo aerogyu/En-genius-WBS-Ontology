@@ -23,7 +23,7 @@ from .parse import WEEKDAYS_KO, find_header, parse_deps, read_wbs
 from .schedule import date_schedule, event_values, finish_date, reschedule, start_date, widx
 
 FORMAT = "engenius-wbs-changes/1"
-FIELDS = ("duration", "start", "preds", "name", "man_hours", "staff", "shift")   # shift = 일정 옮기기: no 0 = 전체, to = 평일 수 (v0.6)
+FIELDS = ("duration", "start", "preds", "name", "man_hours", "staff", "deliverables", "shift")   # shift = 일정 옮기기: no 0 = 전체, to = 평일 수 (v0.6)
 DATE_TXT = re.compile(r"^(\s*)(\d{2,4})([-./])(\d{1,2})([-./])(\d{1,2})(\s*)(\(\s*[월화수목금토일]\s*\))?(.*)$")
 DUR_TXT = re.compile(r"^(\s*<?\s*)([0-9][0-9,]*(?:\.[0-9]+)?)(\s*)([^\d\s?<>]*)(.*)$")
 DAY_UNITS = {"", "일", "d", "day", "days", "경과일"}
@@ -149,6 +149,11 @@ def apply_changes(src: Path, changes: Path, cfg: dict, out_dir: Path | None = No
             t.man_hours = None if to in (None, "") else float(to)
         elif f == "staff":
             t.staff = None if to in (None, "") else float(to)
+        elif f == "deliverables":                                  # 글자 하나 → 설정의 구분자·줄바꿈으로 나눔 (store.split_deliverables 와 같은 규칙)
+            parts = [nfkc(to or "")]
+            for sep in ["\n", ";"] + list(cfg.get("deliverable_split", [","])):
+                parts = [p for x in parts for p in x.split(sep)]
+            t.deliverables = [p.strip() for p in parts if p.strip()]
     for top, n in shifts:
         scope, stack = [], ([top] if top else [t.no for t in tasks.values() if t.parent is None])
         while stack:
@@ -225,6 +230,10 @@ def apply_changes(src: Path, changes: Path, cfg: dict, out_dir: Path | None = No
             put(t, "man_hours", t.man_hours)
         if "staff" in fs:
             put(t, "staff", t.staff)
+        if "deliverables" in fs and "deliverable" in cols:
+            raw = ws.cell(row=t.excel_row, column=cols["deliverable"]).value      # 줄바꿈으로 나눠 적던 칸은 줄바꿈, 아니면 첫 구분자
+            sep = "\n" if raw and "\n" in str(raw) else str((cfg.get("deliverable_split") or [","])[0]) + " "
+            put(t, "deliverable", sep.join(t.deliverables) or None)
     # 요약 Man Hours: 원래 '적힌 값 = 아래 합' 이던 위 요약만 차이만큼 고침 (C12 인 것은 그대로)
     below = a.workload.mh_below
     delta: dict[int, float] = {}

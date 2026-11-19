@@ -169,3 +169,20 @@ def test_apply_shift_file_mode(tmp_path):
     assert w3.tasks[6].start == date(2027, 2, 1) and wd(w0.tasks[11].start, w3.tasks[11].start) >= 10
     with pytest.raises(ValueError):
         run([{"no": 999, "field": "shift", "to": 3}], "bad.json")
+
+
+def test_apply_staff_and_deliverables_file_mode(tmp_path):
+    """파일 모드 (v0.7) — 투입인력·산출물 변경이 원본 사본의 그 칸에만 적힌다 (날짜는 그대로)."""
+    src = make_small(tmp_path / "small.xlsx")
+    w0 = read_wbs(src, CFG)
+    ch = {"format": "engenius-wbs-changes/1", "source": "small.xlsx", "sheet": w0.sheet, "sha256": sha256_of(src),
+          "changes": [{"no": 7, "field": "staff", "to": 4}, {"no": 7, "field": "deliverables", "to": "해석 결과"},
+                      {"no": 5, "field": "deliverables", "to": "성능 보고서; 검토 자료; 시험 계획"}]}
+    (tmp_path / "c.json").write_text(json.dumps(ch, ensure_ascii=False), encoding="utf-8")
+    out = tmp_path / "out"
+    out.mkdir()
+    res = apply_changes(src, tmp_path / "c.json", CFG, out)
+    w1 = read_wbs(res.out, CFG)
+    assert w1.tasks[7].staff == 4 and w1.tasks[7].deliverables == ["해석 결과"]
+    assert w1.tasks[5].deliverables == ["성능 보고서", "검토 자료", "시험 계획"] and res.cells == 3
+    assert all((w1.tasks[n].start, w1.tasks[n].finish) == (w0.tasks[n].start, w0.tasks[n].finish) for n in w0.tasks)

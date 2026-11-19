@@ -3,7 +3,8 @@
   권한     관리자: 전부 · 모듈 리더: 자기 모듈(Lv1 아래) 업무만, Lv1 줄 자체는 관리자만 · 조회자: 없음 — 저장마다 서버가 검사
   겹침     내가 본 판(base_rev) 뒤에 다른 저장이 같은 업무를 고쳤으면 통째로 거절 (덮어쓰지 않는다). 다른 업무만 고쳤으면 그 위에 반영.
   반영     한 트랜잭션: txn(역할 이름) → 칸마다 change(old → new) → 날짜 다시 짜기(store.recompute = schedule.forward) → 커밋
-  고칠 칸  하위 업무: 기간(일하는 평일 수) · 시작 하한('이 날 이후') · 선행 · 이름 · Man Hours / 요약 업무: 선행 · 이름
+  고칠 칸  하위 업무: 기간(일하는 평일 수) · 시작 하한('이 날 이후') · 선행 · 이름 · Man Hours · 투입인력 · 산출물 / 요약 업무: 선행 · 이름 · 투입인력 · 산출물
+           투입인력·산출물은 날짜 계산과 무관 (v0.7). 산출물은 글자 하나로 받아 설정의 구분자(deliverable_split · 줄바꿈)로 나눠 적는다.
 
 선행은 화면의 번호 표기(MS Project, '12,15SS+5일')로 받아 지금 번호 → uid 로 바꿔 둔다 (번호가 바뀌어도 연결은 그대로).
 고치지 않은 선행의 '느슨함'(relax_days)은 그대로, 새 선행은 0. 선행을 지웠는데 시작 하한이 없으면 지금 시작을 하한으로 둔다
@@ -20,11 +21,11 @@ from .auth import Role
 from .config import nfkc
 from .parse import DEP_RE, parse_deps
 from .rows import EditError, check_cycles, check_open, cycle_uids
-from .store import Store, _units
+from .store import Store, _units, split_deliverables
 
-FIELDS = ("duration", "start", "preds", "name", "man_hours", "fix_relax")
+FIELDS = ("duration", "start", "preds", "name", "man_hours", "staff", "deliverables", "fix_relax")
 LEAF_ONLY = ("duration", "start", "man_hours")
-LABEL = {"duration": "기간(평일)", "start": "시작 하한", "preds": "선행", "name": "이름", "man_hours": "Man Hours",
+LABEL = {"duration": "기간(평일)", "start": "시작 하한", "preds": "선행", "name": "이름", "man_hours": "Man Hours", "staff": "투입인력", "deliverables": "산출물",
          "fix_relax": "느슨함(평일)", "relax": "느슨함(평일)", "add": "추가", "delete": "삭제", "move": "위치(WBS)", "children": "하위 줄", "ungroup": "풀기", "shift": "일정 옮김"}
 KIND_KO = {"edit": "칸 고치기", "rows": "줄 편집", "snapshot": "판 확정", "lock": "편집 열고 닫기"}
 MAX_EDITS = 2000
@@ -79,13 +80,21 @@ def apply_edits(st: Store, cfg: dict, role: Role, base_rev: int, edits: list[dic
             continue
         try:
             if t.children and any(k in ch for k in LEAF_ONLY):
-                raise EditError("invalid", "요약 업무는 선행·이름만 고칠 수 있다")
+                raise EditError("invalid", "요약 업무의 기간·시작·Man Hours 는 고칠 수 없다 (아래 업무에서 올라온다)")
             if "duration" in ch:
                 ch["duration"] = _num(ch["duration"], "기간", 0, 1e5)
             if "start" in ch:
                 ch["start"] = date.fromisoformat(str(ch["start"])).isoformat() if ch["start"] else None
             if "man_hours" in ch and ch["man_hours"] is not None:
                 ch["man_hours"] = _num(ch["man_hours"], "Man Hours")
+            if "staff" in ch and ch["staff"] is not None:
+                ch["staff"] = _num(ch["staff"], "투입인력", 0, 1e5)
+            if "deliverables" in ch:
+                if ch["deliverables"] is not None and not isinstance(ch["deliverables"], str):
+                    raise EditError("invalid", "산출물은 글자로")
+                ch["deliverables"] = split_deliverables(ch["deliverables"].replace(";", "\n") if ch["deliverables"] else None, cfg)   # 화면은 ; 로 나눠 받는다
+                if len(ch["deliverables"]) > 50 or any(len(x) > 300 for x in ch["deliverables"]):
+                    raise EditError("invalid", "산출물이 너무 많거나 길다")
             if "fix_relax" in ch and ch["fix_relax"] is not True:
                 raise EditError("invalid", "fix_relax 는 true 만")
             if "name" in ch:
@@ -144,6 +153,15 @@ def apply_edits(st: Store, cfg: dict, role: Role, base_rev: int, edits: list[dic
             if "man_hours" in ch and ch["man_hours"] != r["man_hours"]:
                 log(uid, "man_hours", r["man_hours"], ch["man_hours"])
                 st.db.execute("UPDATE task SET man_hours = ? WHERE uid = ?", (ch["man_hours"], uid))
+            if "staff" in ch and ch["staff"] != r["staff"]:
+                log(uid, "staff", r["staff"], ch["staff"])
+                st.db.execute("UPDATE task SET staff = ? WHERE uid = ?", (ch["staff"], uid))
+            if "deliverables" in ch and ch["deliverables"] != split_deliverables(r["deliverables"], cfg):
+                raw = r["deliverables"]                              # 칸 글자 모양을 따른다: 줄바꿈으로 나눠 적던 칸은 줄바꿈, 아니면 첫 구분자
+                sep = "\n" if raw and "\n" in str(raw) else str((cfg.get("deliverable_split") or [","])[0]) + " "
+                text = sep.join(ch["deliverables"]) or None
+                log(uid, "deliverables", raw, text)
+                st.db.execute("UPDATE task SET deliverables = ? WHERE uid = ?", (text, uid))
             if "preds" in ch:
                 old = m.deps.get(no, [])
                 old_text = ",".join(f"{no_of[d['pred_uid']]}{d['suffix']}" for d in old)

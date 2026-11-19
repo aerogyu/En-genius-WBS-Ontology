@@ -26,8 +26,8 @@ from .store import Model, Store, module_of
 
 LABEL_MAX = 60
 FIELD_KO = {"added": "추가", "deleted": "삭제", "name": "이름", "duration": "기간(평일)", "preds": "선행", "man_hours": "Man Hours",
-            "parent": "위치(묶음)", "start_floor": "시작 하한", "dates": "날짜"}
-DIRECT = ("name", "duration", "preds", "man_hours", "parent", "start_floor")
+            "staff": "투입인력", "deliverables": "산출물", "parent": "위치(묶음)", "start_floor": "시작 하한", "dates": "날짜"}
+DIRECT = ("name", "duration", "preds", "man_hours", "staff", "deliverables", "parent", "start_floor")
 
 
 def summary(m: Model, cfg: dict) -> dict:
@@ -128,6 +128,7 @@ def _side(m: Model) -> dict[int, dict]:
         out[uids[no]] = {
             "no": no, "wbs": t.wbs, "name": nfkc(r["name"]).strip(), "level": t.level, "leaf": not t.children,
             "parent": r["parent_uid"], "work": r["work_days"], "floor": r["start_floor"], "mh": r["man_hours"],
+            "staff": r["staff"], "dl": "; ".join(t.deliverables),
             "start": t.start, "finish": t.finish, "module": uids[lv1[no]], "module_name": tasks[lv1[no]].name,
             "deps": frozenset((d["pred_uid"], d["type"], float(d["lag_days"] or 0.0)) for d in deps),
             "preds": ",".join(f"{no_of.get(d['pred_uid'], '?')}{d['suffix']}" for d in deps)}
@@ -185,6 +186,10 @@ def compare(a: Store, b: Store, cfg: dict) -> dict:
             ch.append(("preds", x["preds"], y["preds"]))
         if (x["mh"] or 0.0) != (y["mh"] or 0.0) and x["leaf"] and y["leaf"]:
             ch.append(("man_hours", _fmt(x["mh"]), _fmt(y["mh"])))
+        if (x["staff"] or 0.0) != (y["staff"] or 0.0):
+            ch.append(("staff", _fmt(x["staff"]), _fmt(y["staff"])))
+        if x["dl"] != y["dl"]:
+            ch.append(("deliverables", x["dl"] or None, y["dl"] or None))
         if x["parent"] != y["parent"]:
             pa, pb = A.get(x["parent"]), B.get(y["parent"])
             ch.append(("parent", pa["wbs"] + " " + pa["name"] if pa else "(맨 위)", pb["wbs"] + " " + pb["name"] if pb else "(맨 위)"))
@@ -222,7 +227,7 @@ def compare(a: Store, b: Store, cfg: dict) -> dict:
     ea, eb = (date.fromisoformat(s["end"]) if s["end"] else None for s in (sa, sb))
     codes = sorted(set(sa["issues"]) | set(sb["issues"]))
     return {"a": sa, "b": sb, "end_shift": _shift(ea, eb), "counts": {k: counts.get(k, 0) for k in
-            ("added", "deleted", "changed", "name", "duration", "preds", "man_hours", "parent", "start_floor", "dates")},
+            ("added", "deleted", "changed", *DIRECT, "dates")},
             "issues": [{"code": c, "a": sa["issues"].get(c, 0), "b": sb["issues"].get(c, 0)} for c in codes
                        if sa["issues"].get(c, 0) != sb["issues"].get(c, 0)],
             "modules": sorted(mods.values(), key=lambda r: r["module"]), "items": items}
