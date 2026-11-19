@@ -25,9 +25,10 @@ from .store import Store, _units
 FIELDS = ("duration", "start", "preds", "name", "man_hours", "fix_relax")
 LEAF_ONLY = ("duration", "start", "man_hours")
 LABEL = {"duration": "기간(평일)", "start": "시작 하한", "preds": "선행", "name": "이름", "man_hours": "Man Hours",
-         "fix_relax": "느슨함(평일)", "relax": "느슨함(평일)", "add": "추가", "delete": "삭제", "move": "위치(WBS)", "children": "하위 줄", "ungroup": "풀기"}
+         "fix_relax": "느슨함(평일)", "relax": "느슨함(평일)", "add": "추가", "delete": "삭제", "move": "위치(WBS)", "children": "하위 줄", "ungroup": "풀기", "shift": "일정 옮김"}
 KIND_KO = {"edit": "칸 고치기", "rows": "줄 편집", "snapshot": "판 확정", "lock": "편집 열고 닫기"}
 MAX_EDITS = 2000
+HIST_CHANGES = 60       # 이력 한 묶음에서 보내는 칸 수 (일정 옮기기는 수천 칸 — 전체 수는 n_changes)
 
 
 def _fmt(v) -> str | None:
@@ -194,7 +195,8 @@ def history(st: Store, cfg: dict, uid: int | None = None, limit: int = 50) -> li
     out = []
     for x in st.db.execute(q, ((uid, limit) if uid else (limit,))):
         chs = []
-        for c in st.db.execute("SELECT * FROM change WHERE txn_id = ?" + (" AND task_uid = ?" if uid else "") + " ORDER BY id",
+        total = st.db.execute("SELECT COUNT(*) FROM change WHERE txn_id = ?", (x["id"],)).fetchone()[0]
+        for c in st.db.execute("SELECT * FROM change WHERE txn_id = ?" + (" AND task_uid = ?" if uid else "") + f" ORDER BY id LIMIT {HIST_CHANGES}",
                                ((x["id"], uid) if uid else (x["id"],))):
             no = no_of.get(c["task_uid"])
             t = m.wbs.tasks.get(no) if no else None
@@ -202,5 +204,5 @@ def history(st: Store, cfg: dict, uid: int | None = None, limit: int = 50) -> li
                         "field": c["field"], "label": LABEL.get(c["field"], c["field"]), "old": c["old"], "new": c["new"]})
         note = json.loads(x["note"]) if x["note"] and x["note"].startswith("{") else {}
         out.append({"txn": x["id"], "at": x["at"], "role": x["role"], "kind": x["kind"], "kind_ko": KIND_KO.get(x["kind"], x["kind"]),
-                    "note": note, "changes": chs})
+                    "note": note, "changes": chs, "n_changes": total})
     return out

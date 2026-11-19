@@ -23,8 +23,8 @@ section{display:none;flex:1;min-height:0}section.on{display:flex}
 #hits div{padding:3px 8px;cursor:pointer;border-bottom:1px solid var(--line)}#hits div:hover{background:var(--bg)}#hits .p{color:var(--mut);font-size:11px;display:block}
 #main{flex:1;min-width:0;display:flex;flex-direction:column}
 #quick{padding:6px 12px;border-bottom:1px solid var(--line);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-#quick button,#ctl button.fb{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:3px 9px;border-radius:6px;cursor:pointer;font:inherit}
-#ctl{padding:6px 12px;display:grid;grid-template-columns:44px minmax(0,1fr);gap:4px 8px;align-items:center;border-bottom:1px solid var(--line)}
+#quick>button,#quick .mb button[data-q],#ctl button.fb{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:3px 9px;border-radius:6px;cursor:pointer;font:inherit}
+#ctl{padding:5px 12px;display:flex;gap:5px 8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--line)}
 #ctl .k{color:var(--mut)}#ctl .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #ctl button.fb.on{border-color:var(--acc);background:var(--chip)}
 select,input{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:3px 6px;font:inherit}
@@ -32,9 +32,18 @@ select,input{background:var(--card);color:var(--fg);border:1px solid var(--line)
 .chip{display:inline-flex;align-items:center;gap:4px;background:var(--chip);border-radius:9px;padding:0 8px;font-size:12px}.chip b{font-weight:normal;color:var(--mut)}.chip span.x{cursor:pointer;color:var(--mut)}
 #pop{position:absolute;z-index:9;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px;width:300px;max-height:60vh;display:none;flex-direction:column;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.15)}
 #pop .list{overflow:auto;flex:1;min-height:0}#pop label{display:flex;gap:6px;align-items:center;padding:2px 2px;cursor:pointer}#pop label:hover{background:var(--bg)}#pop label .ct{margin-left:auto;color:var(--mut);font-size:11px}
-#crumb{padding:4px 12px;border-bottom:1px solid var(--line);display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px}
-#crumb button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:2px 9px;border-radius:6px;cursor:pointer;font:inherit}#crumb button:disabled{opacity:.4;cursor:default}
-#crumb .cs{color:var(--mut)}#crumb .cur{font-weight:bold}
+#quick>button:disabled{opacity:.4;cursor:default}#quick .cs{color:var(--mut)}#quick .cur{font-weight:bold}#crumbPath{min-width:0}
+.menu{position:relative}.menu>summary{list-style:none;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--fg);padding:3px 9px;border-radius:6px;user-select:none;white-space:nowrap}.menu>summary::-webkit-details-marker{display:none}.menu[open]>summary{border-color:var(--acc);background:var(--chip)}
+.menu .mb{position:absolute;right:0;top:calc(100% + 4px);z-index:20;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px;min-width:280px;display:flex;flex-direction:column;gap:6px;box-shadow:0 4px 16px rgba(0,0,0,.15)}
+#quick .mb button[data-q]{display:block;width:100%;text-align:left;padding:5px 8px}#quick .mb button[data-q] span{display:block;font-size:11.5px;color:var(--mut)}#quick .mb button[data-q]:hover{border-color:var(--acc)}
+.menu .mb label{display:flex;gap:6px;align-items:center;cursor:pointer;white-space:nowrap}.menu .mb .mr{display:flex;gap:8px;align-items:center;white-space:nowrap}
+#pend{padding:5px 14px;border-bottom:1px solid var(--acc);background:var(--chip);display:none;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px}#pendMsg{font-size:12px}
+#shiftDlg{position:fixed;right:18px;top:118px;z-index:30;width:380px;max-width:calc(100vw - 24px);background:var(--card);border:1px solid var(--acc);border-radius:10px;padding:10px 12px;display:none;box-shadow:0 6px 24px rgba(0,0,0,.25);font-size:13px}
+#shiftDlg .hd{display:flex;align-items:center;margin-bottom:2px}#shiftDlg .hd .x{margin-left:auto;cursor:pointer;color:var(--mut);padding:0 4px}
+#shiftDlg .k{color:var(--mut);font-size:12px;margin:8px 0 2px}#shiftDlg label{display:block;padding:2px 0;cursor:pointer}#shiftDlg label.off{color:var(--mut);cursor:default}
+#shiftDlg .r{display:flex;gap:6px;align-items:center;margin:4px 0;flex-wrap:wrap}#shiftDlg input[type=number]{width:90px}#shiftDlg .nt{font-size:11.5px;margin-top:8px}#shMsg{font-size:12.5px;margin-top:6px}
+#shiftDlg button,#pend button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:3px 10px;border-radius:6px;cursor:pointer;font:inherit}#shiftDlg button.pri,#pend button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}#shiftDlg button:disabled,#pend button:disabled{opacity:.45;cursor:default}
+details.sec{border-top:1px solid var(--line);margin-top:10px;padding-top:2px}details.sec>summary{cursor:pointer;font-weight:bold;font-size:13px;margin:6px 0 4px}details.sec>summary .mut{font-weight:normal}
 #canvasWrap{flex:1;min-height:260px;position:relative;overflow:hidden;background:var(--card)}
 #canvas{width:100%;height:100%;cursor:grab;display:block}#canvas:active{cursor:grabbing}
 #axis{position:absolute;left:0;top:0;width:100%;height:24px;pointer-events:none;background:var(--card);border-bottom:1px solid var(--line);display:none}
@@ -49,7 +58,7 @@ select,input{background:var(--card);color:var(--fg);border:1px solid var(--line)
 #gantt svg text{font-size:11px}
 #legend{position:absolute;left:10px;bottom:8px;z-index:4;max-width:calc(100% - 150px);font-size:11px;color:var(--mut);background:var(--card);padding:2px 6px;border-radius:6px;border:1px solid var(--line);cursor:pointer}#legend .lgT{color:var(--acc)}#legend .lgB{display:none}#legend.open .lgB{display:inline}#legend.open .lgT{margin-right:6px}
 #zoom{position:absolute;right:18px;bottom:30px;z-index:5;display:flex;gap:4px}#zoom button{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;width:28px;height:28px;cursor:pointer}
-#now{padding:5px 12px;border-top:1px solid var(--line);font-size:12px;display:flex;gap:10px;align-items:center}#now .lnk{margin-left:auto;white-space:nowrap}
+#now{padding:5px 12px;border-top:1px solid var(--line);font-size:12px;display:flex;gap:10px;align-items:center}#now #copyLink{margin-left:auto;white-space:nowrap}
 #side{width:330px;min-width:260px;border-left:1px solid var(--line);overflow:auto;padding:10px 12px;background:var(--card)}
 #side h3{margin:8px 0 4px;font-size:13px}#side table{border-collapse:collapse;width:100%}#side td{padding:2px 4px;border-bottom:1px solid var(--line);vertical-align:top}#side td:first-child{color:var(--mut);white-space:nowrap}
 .lnk{color:var(--acc);cursor:pointer;text-decoration:underline}.pill{display:inline-block;padding:0 6px;border-radius:9px;background:var(--line);font-size:11px;margin-right:4px}.err{color:var(--hot);font-weight:bold}
@@ -77,7 +86,7 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
 .edbox{border:1px solid var(--acc);border-radius:8px;padding:6px 8px;margin-bottom:10px;background:var(--chip)}.edbox .it{display:flex;gap:6px;align-items:baseline;font-size:12px;padding:1px 0}.edbox .it .x{margin-left:auto;cursor:pointer;color:var(--mut)}
 .edbox button,#side button.eb{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:3px 9px;border-radius:6px;cursor:pointer;font:inherit;margin:4px 4px 0 0}.edbox button.pri,#side button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
 #side table.ed input{width:100%}#side table.ed input[type=number]{width:80px}#side table.ed input[type=date]{width:140px}.mv,.gr0 .num.mv{color:var(--acc);font-weight:bold}
-#edChip{cursor:pointer;background:var(--acc);color:#fff}
+#edChip{font-weight:bold}
 #co.on{flex-direction:column;overflow:auto;padding:10px 14px;gap:12px}.cobox{border:1px solid var(--line);border-radius:8px;background:var(--card);padding:8px 12px}
 .cobox h3{margin:0 0 6px;font-size:14px}.cotb{border-collapse:collapse;width:100%}.cotb td,.cotb th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left;font-size:12px;vertical-align:top}.cotb th{color:var(--mut);font-weight:normal}
 .cotb td.n{text-align:right;font-variant-numeric:tabular-nums}.req{border-bottom:1px solid var(--line);padding:6px 0;font-size:12px}.req:last-child{border-bottom:0}
@@ -86,33 +95,37 @@ svg text{user-select:none}.nd{cursor:pointer}.nd rect{stroke-width:1.5}.nd.dim{o
 </style></head><body>
 <header><h1>__TITLE__</h1><span class="mut" id="meta"></span></header>
 <nav><button data-t="gr" class="on">① 선후 관계 보기</button><button data-t="is">② 검사</button><button data-t="mh">③ 월별 공수</button><button data-t="cp">④ 주경로</button><button data-t="co" id="coTab" style="display:none" title="수정 요청 · 판 확정·비교 · 모듈별 엑셀 (서버)">⑤ 판·요청</button><span id="paneTg"><label id="tgTreeL" title="왼쪽에 WBS 구조 (트리 · 찾기 · 체크해 고르기) — 끄면 가운데가 넓어짐"><input type="checkbox" id="tgTree"> 왼쪽 WBS 구조</label><label id="tgSideL" title="오른쪽에 고른 업무의 상세 (선행·후속 · 가정 편집 · 줄 편집) — 끄면 가운데가 넓어짐. 글자가 파랗게 되면 고른 업무가 있음"><input type="checkbox" id="tgSide"> 오른쪽 업무 상세</label></span></nav>
+<div id="pend"><span id="edChip"></span><span id="pendMsg" class="mut"></span><span style="flex:1"></span><button id="pendView" title="④ 주경로 탭에서 변경 목록 보기">변경 보기</button><button class="pri" id="pendSave" title="저장하면 모든 사람 화면에 반영 · 이력에 역할 이름으로 남음">서버에 저장</button><button class="pri" id="pendDown" title="apply.bat 에 원본 엑셀과 함께 끌어다 놓으면 원본 형식 그대로 새 판 엑셀">변경 목록 내려받기</button><button id="pendUndo">모두 되돌리기</button></div>
 <section id="gr" class="on">
  <div id="tree"><div class="bar"><input type="text" id="q" placeholder="찾기: 번호 · WBS · 이름 일부"><button id="pickClear" title="트리 체크 모두 해제" style="font:inherit">체크 해제</button></div><div id="hits"></div><div id="treeBody"></div></div>
  <div id="main">
-  <div id="quick"><span class="mut">빠른 보기</span>
-   <button data-q="phase" title="개발 단계 하나를 고르고, 줄은 기술 분야별, 상자는 상위 기술 업무">단계 하나 · 분야별 줄</button>
-   <button data-q="disc" title="기술 분야 하나를 고르고, 모든 구성품·모든 단계를 모아 줄은 개발 단계별">분야 하나 · 모든 단계</button>
-   <button data-q="level" title="거르기 없이 한 레벨의 요소 전부를 줄 없이">한 레벨 전체 · 줄 없음</button>
-   <button data-q="picks" title="왼쪽 트리에서 체크한 항목들만 모아, 줄은 고른 항목별">트리에서 고른 것</button>
-   <button data-q="cp" title="주경로·준주경로 하위 업무만, 줄은 개발 단계별, 시작일 순">주경로만</button>
-   <span class="chip" id="edChip" style="display:none" title="④ 주경로 탭에서 변경 목록 보기·내려받기"></span><span style="flex:1"></span><label title="간트의 묶음 행에 그 아래 마일스톤을 작은 ▽ 로"><input type="checkbox" id="msk" checked> 하부 마일스톤</label><label title="막대 빨강 = 주경로 · 노랑 = 준주경로 (엑셀 날짜 기준 총 여유)"><input type="checkbox" id="chk" checked> 주경로 색</label><label><input type="checkbox" id="ext" checked> 밖 출입</label>
+  <div id="quick"><button id="navBack" title="바로 앞 보기로 (브라우저 뒤로·Alt+← 와 같음)">◀ 뒤로</button><button id="navUp" title="한 레벨 바깥으로 (빈 곳 두 번 누름과 같음)">↑ 바깥으로</button><span class="mut">위치</span><span id="crumbPath"></span>
+   <span style="flex:1"></span>
+   <details class="menu" id="mQuick"><summary title="자주 쓰는 보기로 한 번에 바꾸기">빠른 보기 ▾</summary><div class="mb">
+    <button data-q="phase"><b>단계 하나 · 분야별 줄</b><span>개발 단계 하나를 고르고, 줄은 기술 분야별, 상자는 상위 기술 업무</span></button>
+    <button data-q="disc"><b>분야 하나 · 모든 단계</b><span>기술 분야 하나를 고르고, 모든 구성품·단계를 모아 줄은 개발 단계별</span></button>
+    <button data-q="level"><b>한 레벨 전체 · 줄 없음</b><span>거르기 없이 한 레벨의 요소 전부</span></button>
+    <button data-q="picks"><b>트리에서 고른 것</b><span>왼쪽 WBS 구조에서 체크한 항목만 모아, 줄은 고른 항목별</span></button>
+    <button data-q="cp"><b>주경로만</b><span>주경로·준주경로 하위 업무만, 줄은 개발 단계별, 시작일 순</span></button></div></details>
+   <details class="menu" id="mOpt"><summary title="간트 순서 · 선 · 마일스톤 · 주경로 색 · 범위 밖 표시">표시 ▾</summary><div class="mb">
+    <div class="mr"><span class="mut">간트 순서</span><span class="seg" id="order" title="간트 행 순서"><button data-v="wbs" class="on">WBS 순</button><button data-v="start">시작일 순</button></span></div>
+    <div class="mr"><span class="mut">선</span><span class="seg" id="lines"><button data-v="off">끔</button><button data-v="sel" class="on">고른 것만</button><button data-v="hand">넘겨받기만</button><button data-v="all">전부</button></span></div>
+    <label title="간트의 묶음 행에 그 아래 마일스톤을 작은 ▽ 로"><input type="checkbox" id="msk" checked> 하부 마일스톤 <span class="mut">묶음 행에 작은 ▽</span></label>
+    <label title="막대 빨강 = 주경로 · 노랑 = 준주경로 (엑셀 날짜 기준 총 여유)"><input type="checkbox" id="chk" checked> 주경로 색 <span class="mut">빨강·노랑 막대</span></label>
+    <label title="거른 범위 밖에서 들어오고 나가는 선행 — 점선 토막 · 간트 ‘밖 ←/→’ 열"><input type="checkbox" id="ext" checked> 밖 출입 <span class="mut">거른 범위 밖 선행</span></label></div></details>
+   <button id="shiftBtn" title="전체 사업이나 고른 묶음의 일정을 평일 수만큼 통째로 늦추거나 당기기 — 미리 보기 뒤 저장">⇄ 일정 옮기기</button>
   </div>
-  <div id="ctl">
-   <span class="k">거르기</span><div class="row" id="filters"></div>
-   <span class="k">보기</span><div class="row"><span class="mut">묶기</span><select id="grain" title="상자(간트 한 행) 하나 = 이 레벨 요소 하나"></select><span class="mut">줄</span><select id="lane" title="가로 띠(간트 머리 행)를 어느 레벨 이름으로 나눌지"></select><span class="seg" id="layout"><button data-v="gantt" class="on">간트</button><button data-v="time">시간표</button><button data-v="flow">흐름도</button></span>
-    <span class="seg" id="order" title="간트 행 순서"><button data-v="wbs" class="on">WBS 순</button><button data-v="start">시작일 순</button></span>
-    <span style="white-space:nowrap"><span class="mut">선 </span><span class="seg" id="lines"><button data-v="off">끔</button><button data-v="sel" class="on">고른 것만</button><button data-v="hand">넘겨받기만</button><button data-v="all">전부</button></span></span><span class="mut" id="stat"></span></div>
-  </div>
-  <div id="crumb"><button id="navBack" title="바로 앞 보기로 (브라우저 뒤로·Alt+← 와 같음)">◀ 뒤로</button><button id="navUp" title="한 레벨 바깥으로 (빈 곳 두 번 누름과 같음)">↑ 바깥으로</button><span class="mut">위치</span><span id="crumbPath"></span></div>
+  <div id="ctl"><span class="k">거르기</span><div class="row" id="filters"></div><span class="k" style="margin-left:8px">묶기</span><select id="grain" title="상자(간트 한 행) 하나 = 이 레벨 요소 하나"></select><span class="k">줄</span><select id="lane" title="가로 띠(간트 머리 행)를 어느 레벨 이름으로 나눌지"></select><span class="seg" id="layout"><button data-v="gantt" class="on">간트</button><button data-v="time">시간표</button><button data-v="flow">흐름도</button></span></div>
   <div id="canvasWrap"><div id="gantt"></div><svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg><svg id="axis" xmlns="http://www.w3.org/2000/svg"></svg>
    <div id="legend">상자 = 이름표(왼쪽 끝 = 시작일) · 회색 띠 = 실제 기간 · 회색 선 = 같은 줄 안 선행 · <span style="color:var(--hand)">주황</span> = 줄을 넘는 넘겨받기 · 점선 토막 = 거른 범위 밖 · 누름 = 앞(보라)/뒤(초록) · 두 번 누름 = 그 안으로 · 빈 곳 두 번 누름 = 바깥으로</div>
    <div id="zoom"><button id="zi" title="확대">+</button><button id="zo" title="축소">−</button><button id="zf" title="맞춤">⌂</button></div>
   </div>
-  <div id="now"><span id="nowText"></span><span class="lnk" id="copyLink">보기 주소 복사</span></div>
+  <div id="now"><span id="nowText"></span><span class="mut" id="stat"></span><span class="lnk" id="copyLink">보기 주소 복사</span></div>
  </div>
  <div id="side"></div>
  <div id="pop"></div>
 </section>
+<div id="shiftDlg"></div>
 <section id="mh">
  <div id="mhTop"><span class="mut">범위</span><span class="seg" id="mhScope"><button data-v="view" class="on">보기 탭 거르기 따름</button><button data-v="all">전체</button></span><span class="mut" id="mhScopeText"></span>
   <span style="flex:1"></span><span class="mut">묶음</span><span class="seg" id="mhBin"><button data-v="m" class="on">월</button><button data-v="q">분기</button><button data-v="y">연</button></span></div>
@@ -231,7 +244,7 @@ $("q").oninput=()=>{const q=$("q").value.trim().toLowerCase();if(!q){$("hits").i
  $("hits").querySelectorAll("div[data-n]").forEach(d=>d.onclick=()=>{$("hits").innerHTML="";$("q").value="";pathFilter(+d.dataset.n)})};
 // ---- 조작 줄 ----
 function syncControls(){const fl=$("filters");let h="";for(let l=1;l<=5;l++){const f=S.f[l];const txt=!f?"전체":f.size===1?[...f][0]:`${f.size}개`;h+=`<button class="fb${f?" on":""}" data-l="${l}" title="Lv${l} ${LVNAME[l]} · ${esc(txt)}">Lv${l} ${f?esc(txt):LVNAME[l]} ▾</button>`}
- h+=`<span class="mut">${S.picks.size?`트리 체크 ${S.picks.size}개`:"트리 체크 0개"}</span>`;if(S.cp)h+=`<span class="chip">주경로·준주경로만 <span class="x" id="cpOff" title="끄기">✕</span></span>`;fl.innerHTML=h;
+ if(S.picks.size)h+=`<span class="mut">트리 체크 ${S.picks.size}개</span>`;if(S.cp)h+=`<span class="chip">주경로·준주경로만 <span class="x" id="cpOff" title="끄기">✕</span></span>`;fl.innerHTML=h;
  if(S.cp)$("cpOff").onclick=()=>{S.cp=false;S.sel=null;syncControls();draw()};fl.querySelectorAll(".fb").forEach(b=>b.onclick=ev=>openPop(+b.dataset.l,b));
  const minG=Math.max(2,deepestFilter()+1,...[...S.picks].map(p=>T.get(p).lv+1));if(S.grain<minG)S.grain=minG;
  const g=$("grain");g.innerHTML="";for(let l=Math.max(2,1);l<=6;l++)g.innerHTML+=`<option value="${l}"${l===S.grain?" selected":""}${l<minG?" disabled":""}>Lv${l} ${LVNAME[l]}</option>`;
@@ -239,7 +252,7 @@ function syncControls(){const fl=$("filters");let h="";for(let l=1;l<=5;l++){con
  if(S.picks.size)ln.innerHTML+=`<option value="pick"${S.lane==="pick"?" selected":""}>고른 항목별</option>`;if(typeof S.lane==="number"&&S.lane>=S.grain)S.lane=0;
  $("layout").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===S.layout));
  $("lines").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===S.lines));
- $("order").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===S.order));$("order").style.display=S.layout==="gantt"?"":"none"}
+ $("order").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.v===S.order));$("order").parentNode.style.display=S.layout==="gantt"?"":"none"}
 $("lines").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.lines=b.dataset.v;syncControls();keepView=true;draw()});
 $("order").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.order=b.dataset.v;syncControls();keepView=true;draw()});
 $("grain").onchange=()=>{S.grain=+$("grain").value;if(typeof S.lane==="number"&&S.lane>=S.grain)S.lane=0;S.sel=null;syncControls();draw()};
@@ -262,7 +275,8 @@ function closePop(){$("pop").style.display="none";popLv=0}
 document.addEventListener("mousedown",ev=>{if($("pop").style.display==="flex"&&!$("pop").contains(ev.target)&&!ev.target.closest(".fb"))closePop()});
 // 빠른 보기
 function firstName(l){const f=S.f[l];if(f&&f.size)return [...f][0];const e=[...NAMES[l].entries()].sort((a,b)=>a[1].row-b[1].row)[0];return e?e[0]:null}
-$("quick").querySelectorAll("button[data-q]").forEach(b=>b.onclick=()=>nav(()=>quickView(b)));
+$("quick").querySelectorAll("button[data-q]").forEach(b=>b.onclick=()=>{$("mQuick").open=false;nav(()=>quickView(b))});
+document.addEventListener("mousedown",ev=>document.querySelectorAll("details.menu[open]").forEach(d=>{if(!d.contains(ev.target))d.open=false}));
 function quickView(b){const q=b.dataset.q;S.sel=null;S.picks.clear();S.cp=q==="cp";
  if(q==="cp"){for(let l=1;l<=5;l++)S.f[l]=null;S.grain=6;S.lane=3;S.order="start";S.layout="gantt";$("chk").checked=true}
  if(q==="phase"){for(let l=1;l<=5;l++)S.f[l]=null;const n=firstName(3);S.f[3]=n?new Set([n]):null;S.grain=5;S.lane=4}
@@ -457,13 +471,14 @@ window.onmousemove=ev=>{if(!drag)return;if(Math.abs(ev.clientX-drag.x)+Math.abs(
 window.onmouseup=()=>{drag=null;setTimeout(()=>dragged=false,0)};
 $("zi").onclick=()=>S.layout==="gantt"?ganttZoom(1.3):zoom(1/1.3);$("zo").onclick=()=>S.layout==="gantt"?ganttZoom(1/1.3):zoom(1.3);
 $("zf").onclick=()=>{if(S.layout==="gantt"){S.ppd=null;keepView=false;draw()}else fit()};window.onresize=()=>{if(S.layout!=="gantt")fit();if($("mh").classList.contains("on"))renderMH()};
-function select(n){S.sel=n;keepView=true;draw()}
+function select(n){S.sel=n;keepView=true;draw();if(SHDLG.shown()&&!SHIFT)SHDLG.open(n)}
 // ---- '지금 보기' 문장 · 보기 주소 ----
 function nowSentence(){const parts=[];for(let l=1;l<=5;l++){const f=S.f[l];if(!f)continue;const a=[...f];parts.push(a.length<=3?a.join("·"):`${LVNAME[l]} ${a.length}개`)}
  let s=parts.length?parts.join("의 "):"";if(S.picks.size)s+=(parts.length?" 중 ":"")+`트리에서 고른 ${S.picks.size}개`;if(!s)s="전체";if(S.cp)s="주경로·준주경로 — "+s;
  s+=` 를 Lv${S.grain} ${LVNAME[S.grain]} 상자로`;s+=S.lane==="pick"?", 줄은 고른 항목별":S.lane?`, 줄은 ${LVNAME[S.lane]}별`:", 줄 없음";return s}
-function renderNow(){$("nowText").innerHTML=`<b style="font-weight:normal">지금 보기:</b> ${esc(nowSentence())} <span class="mut">— 상자 ${G.nodes.size} · 선 ${[...G.edges.values()].filter(e=>!e.ext).length}${G.handoff.size?" · 넘겨받기 "+[...G.handoff.values()].reduce((a,b)=>a+b,0):""} · 밖 ${G.inN}/${G.outN}${G.nodes.size>300?" · 상자가 많습니다 — 거르기를 더하면 읽기 쉽습니다":""}</span>`;
- $("stat").textContent=`뭉쳐진 안쪽 선 ${G.internal}`}
+function nowSel(){if(S.sel==null||!T.has(S.sel))return "";const t=T.get(S.sel);return `<b>고른 것</b> ${esc(t.wbs+" "+t.name)} <span class="mut">${t.st||"-"} ~ ${t.fi||"-"}</span> ${$("tgSide").checked?"":`<span class="lnk" id="nowSide" title="오른쪽에 선행·후속과 고치기 칸을 엽니다">상세·고치기</span> · `}<span class="lnk" id="nowShift" title="이 업무(묶음)의 일정을 통째로 옮기기">일정 옮기기</span> <span class="mut">|</span> `}
+function renderNow(){$("nowText").innerHTML=nowSel()+`<b style="font-weight:normal">지금 보기:</b> ${esc(nowSentence())} <span class="mut">— 상자 ${G.nodes.size} · 선 ${[...G.edges.values()].filter(e=>!e.ext).length}${G.handoff.size?" · 넘겨받기 "+[...G.handoff.values()].reduce((a,b)=>a+b,0):""} · 밖 ${G.inN}/${G.outN}${G.nodes.size>300?" · 상자가 많습니다 — 거르기를 더하면 읽기 쉽습니다":""}</span>`;
+ $("stat").textContent=`뭉쳐진 안쪽 선 ${G.internal}`;const a=$("nowSide");if(a)a.onclick=()=>{$("tgSide").checked=true;togglePanes()};const b=$("nowShift");if(b)b.onclick=()=>SHDLG.open(S.sel)}
 function writeHash(){const st={f:{},cp:S.cp?1:0,k:[CP.crit,CP.near],p:[...S.picks],g:S.grain,l:S.lane,y:S.layout,ln:S.lines,o:S.order,c:$("chk").checked?1:0,e:$("ext").checked?1:0,m:$("msk").checked?1:0};for(let l=1;l<=5;l++)if(S.f[l])st.f[l]=[...S.f[l]];try{history.replaceState(history.state||{d:0},"","#"+encodeURIComponent(JSON.stringify(st)))}catch(e){}renderCrumb()}
 function readHash(){try{const h=decodeURIComponent(location.hash.slice(1));if(!h)return false;const st=JSON.parse(h);for(let l=1;l<=5;l++)S.f[l]=st.f&&st.f[l]?new Set(st.f[l]):null;S.picks=new Set((st.p||[]).filter(n=>T.has(n)));S.grain=st.g||3;S.lane=st.l==="pick"?"pick":(+st.l||0);S.layout=["gantt","time","flow"].includes(st.y)?st.y:"gantt";S.lines=["off","sel","hand","all"].includes(st.ln)?st.ln:"sel";S.order=st.o==="start"?"start":"wbs";$("chk").checked=st.c!==0;S.cp=!!st.cp;if(Array.isArray(st.k)){CP.crit=+st.k[0]||0;CP.near=+st.k[1]||0}$("ext").checked=st.e!==0;$("msk").checked=st.m!==0;return true}catch(e){return false}}
 $("copyLink").onclick=()=>{writeHash();const url=location.href;const done=()=>{$("copyLink").textContent="복사됨 ✓";setTimeout(()=>$("copyLink").textContent="보기 주소 복사",1500)};
@@ -477,7 +492,7 @@ function mhOf(no){const E=emh(),t=T.get(no),v=E.v.get(no)||0;return{v,c12:!!(t.k
 // 왼쪽 WBS 구조 · 오른쪽 업무 상세 — 체크할 때만 보임 (가운데를 넓게). 이 브라우저에 기억 (보기 주소에는 넣지 않음)
 const PANEKEY="engenius-wbs-panes";let GTW=0;
 function paneHint(){$("tgSideL").classList.toggle("hint",S.sel!=null&&!$("tgSide").checked)}
-function applyPanes(tree,side,save){const gr=$("gr");$("tgTree").checked=tree;$("tgSide").checked=side;gr.classList.toggle("noTree",!tree);gr.classList.toggle("noSide",!side);paneHint();
+function applyPanes(tree,side,save){const gr=$("gr");$("tgTree").checked=tree;$("tgSide").checked=side;gr.classList.toggle("noTree",!tree);gr.classList.toggle("noSide",!side);paneHint();if(G)renderNow();
  if(save)try{localStorage.setItem(PANEKEY,JSON.stringify({tree:tree?1:0,side:side?1:0}))}catch(e){}}
 function togglePanes(){closePop();const g=$("gantt"),a0=g.clientWidth-GTW,r0=svg.getBoundingClientRect();applyPanes($("tgTree").checked,$("tgSide").checked,true);
  if(!$("gr").classList.contains("on"))return;
@@ -510,11 +525,11 @@ function renderNode(no){const t=T.get(no),n=G.nodes.get(no);const under=x=>anc(x
  <table><tr><td>기간</td><td>${t.dur??"-"}일 · ${t.st||"-"} ~ ${t.fi||"-"}</td></tr><tr><td>총 여유</td><td>${SCH.fl.has(no)?fmtD(SCH.fl.get(no))+" 평일"+(t.kids.length?" (그 아래 하위 업무 최소)":""):"날짜 없음"}</td></tr><tr><td>앞쪽·뒤쪽 전체</td><td>${t.up} · ${t.dn}</td></tr>
  ${n?`<tr><td>하위 업무</td><td>${n.leaves}</td></tr>`:""}${(m=>`<tr><td>MH</td><td>${m.v?fmtMH(m.v):"-"}${m.c12?` <span class="err">엑셀에 적힌 ${fmtMH(t.mh)} — 하위 합과 다름 (C12)</span>`:""}</td></tr>`)(mhOf(no))}${t.staff!=null?`<tr><td>투입인력</td><td>${t.staff}</td></tr>`:""}${t.del?`<tr><td>산출물</td><td>${esc(t.del)}</td></tr>`:""}</table>`;
  const spn=SPAN.get(no);if(spn)h=h.replace("</table>",`<tr><td>하위 범위</td><td>${spn[0]} ~ ${spn[1]}${t.st&&(spn[0]!==t.st||spn[1]!==t.fi)?' <span class="err">엑셀 날짜와 다름 (C11)</span>':""}</td></tr></table>`);
- const msl=MSU.get(no)||[];if(msl.length)h+=`<h3>그 아래 마일스톤 (${msl.length})</h3><div style="font-size:12px">${msl.slice(0,30).map(m=>`▼ ${T.get(m).st||"-"} <span class="lnk" data-n="${m}">${esc(T.get(m).name)}</span>`).join("<br>")}${msl.length>30?`<br>… ${msl.length-30}개 더`:""}</div>`;
  if(t.kids.length)h+=`<div style="margin:6px 0"><span class="lnk" data-s="${no}">이 안으로 들어가기 (${t.kids.length}개)</span> · <span class="lnk" data-pk="${no}">트리 체크에 더하기</span></div>`;
- if(agg)h+=`<h3>이 상자의 연결 (뭉친 것)</h3><table>${agg}</table>`;
- h+=edForm(no);
  h+=`<h3>선행 (원본 행 ${preE.length})</h3><div style="font-size:12px">${pre}</div><h3>후속 (원본 행 ${sucE.length})</h3><div style="font-size:12px">${suc}</div>`;if(iss)h+=`<h3>검사</h3>${iss}`;
+ if(agg)h+=`<h3>이 상자의 연결 (뭉친 것)</h3><table>${agg}</table>`;
+ const msl=MSU.get(no)||[];if(msl.length)h+=`<h3>그 아래 마일스톤 (${msl.length})</h3><div style="font-size:12px">${msl.slice(0,30).map(m=>`▼ ${T.get(m).st||"-"} <span class="lnk" data-n="${m}">${esc(T.get(m).name)}</span>`).join("<br>")}${msl.length>30?`<br>… ${msl.length-30}개 더`:""}</div>`;
+ h+=edForm(no);
  $("side").innerHTML=h;bindSide();bindEdForm(no)}
 function bindSide(){$("side").querySelectorAll(".lnk[data-n]").forEach(x=>x.onclick=()=>goTask(+x.dataset.n));$("side").querySelectorAll(".lnk[data-s]").forEach(x=>x.onclick=()=>pathFilter(+x.dataset.s));
  $("side").querySelectorAll(".lnk[data-pk]").forEach(x=>x.onclick=()=>{S.picks.add(+x.dataset.pk);if(S.lane!=="pick")S.lane="pick";syncControls();renderTree();draw()})}
@@ -615,7 +630,7 @@ $("mhBin").querySelectorAll("button").forEach(b=>b.onclick=()=>{MS.bin=b.dataset
 // ---- v0.4 가정 편집 — 고치면 '간격 유지' 규칙으로 날짜를 다시 짜고 주경로를 다시 계산 (파이썬 schedule.reschedule 와 같은 규칙) ----
 // 구동된(원래 간격 ≤ 0 인 선행이 있는) 업무는 선행을 따라 당겨지고 밀림 · 여유가 있던 업무는 여유를 다 쓸 때까지 그대로 · 선행 없는 업무는 그대로
 // 변경 목록(.json)을 내려받아 'python -m engenius_wbs apply 원본.xlsx 변경.json' (scripts\apply.bat) → 원본 형식 그대로 새 판 엑셀
-const ED=new Map(),DEPS0=new Map(),SCH0=SCH;let MOVED={},EDLOAD=0;
+const ED=new Map(),DEPS0=new Map(),SCH0=SCH;let MOVED={},EDLOAD=0,SHIFT=null;   // SHIFT = 일정 옮기기 미리 보기 {no: 번호|null(전체), days, res}
 // v0.5 서버 모드 (D.server): 날짜 = max(시작 하한, 선행 요구) — 파이썬 schedule.forward 와 같은 규칙 (저장 결과 = 미리 보기)
 const FL0=new Map(),WK=new Map(),RLX=new Map(),UID=new Map(),RLXIN=new Map();
 if(D.server){D.tasks.forEach((r,i)=>{UID.set(r[0],D.uid[i]);if(D.fl[i]!=null)FL0.set(r[0],D.fl[i]);if(D.wk[i]!=null)WK.set(r[0],D.wk[i])});
@@ -627,8 +642,8 @@ function parseDeps(txt){const out=[],bad=[];for(let tok of String(txt||"").norma
   out.push({p:+m[1],label:(ty==="FS"?"":ty)+lt,ty,lag})}return{deps:out,bad}}
 const depsText=no=>(ED.get(no)?.preds??(DEPS0.get(no)||[]).map(d=>d.p+d.label).join(","));
 const ORIGE=new Set(D.edges.map(e=>`${e[0]}>${e[1]}>${e[3]||"FS"}>${e[4]||0}`));
-function forwardJS(val0,edges,dur,start){const leaf=no=>!T.get(no).kids.length,dOf=no=>dur.has(no)?dur.get(no):(WK.has(no)?WK.get(no):val0.get(2*no+1)-val0.get(2*no));
- const FL=new Map(FL0);for(const [no,e] of ED){if(!leaf(no))continue;if(e.start){FL.set(no,start.get(no));continue}
+function forwardJS(val0,edges,dur,start,FLX,NEED){const leaf=no=>!T.get(no).kids.length,dOf=no=>dur.has(no)?dur.get(no):(WK.has(no)?WK.get(no):val0.get(2*no+1)-val0.get(2*no));
+ const FL=FLX||new Map(FL0);if(!FLX)for(const [no,e] of ED){if(!leaf(no))continue;if(e.start){FL.set(no,start.get(no));continue}
   if(e.preds!=null&&!FL.has(no)&&val0.has(2*no)){const now=new Set(parseDeps(e.preds).deps.map(d=>d.p));if((DEPS0.get(no)||[]).some(d=>!now.has(d.p)))FL.set(no,val0.get(2*no))}}   // 지워도 저절로 당겨지지 않게
  const ins=new Map(),outs=new Map(),link=(src,a,dst,w,toF)=>{(ins.get(dst)||ins.set(dst,[]).get(dst)).push([src,a,w,toF]);(outs.get(src)||outs.set(src,[]).get(src)).push([dst])};
  for(const e of edges){const [a,b]=ENDS[e.ty]||[1,0];if(!val0.has(2*e.p+a)||!val0.has(2*e.s+b))continue;const w=(e.lag||0)-(ED.get(e.s)?.fix_relax?0:(RLX.get(`${e.p}>${e.s}>${e.ty}>${e.lag||0}`)||0)),src=leaf(e.p)?"L"+e.p:(a===0?"R":"F")+e.p;
@@ -643,7 +658,7 @@ function forwardJS(val0,edges,dur,start){const leaf=no=>!T.get(no).kids.length,d
  for(const u of order){const k=u[0],no=+u.slice(1),vals=[];for(const [src,a,w,toF] of (ins.get(u)||[])){if(comp.get(src)===comp.get(u))continue;const v=sv(src,a);if(v!=null)vals.push([v,w,toF])}
   if(k==="R"||k==="F"){let m=null;for(const [v] of vals)if(m==null||(k==="R"?v<m:v>m))m=v;nv.set(u,m!=null?m:val0.get(2*no+(k==="F"?1:0)));continue}
   let r=null;for(const [v,w,toF] of vals){const q=v+w-(toF?dOf(no):0);if(r==null||q>r)r=q}
-  if(k==="C"){nv.set(u,r);continue}
+  if(k==="C"){nv.set(u,r);continue}if(NEED&&r!=null)NEED.set(no,r);
   const fl=FL.has(no)?FL.get(no):null;nv.set(u,r==null?(fl==null?val0.get(2*no):fl):(fl==null?r:Math.max(r,fl)))}
  const val=new Map();for(const no of LEAVES)if(nv.has("L"+no)){const s=nv.get("L"+no);val.set(2*no,s);val.set(2*no+1,s+dOf(no))}
  for(const t of BYLV){let a=Infinity,b=-Infinity;for(const c of t.kids)if(val.has(2*c)){a=Math.min(a,val.get(2*c));b=Math.max(b,val.get(2*c+1))}
@@ -682,8 +697,9 @@ function edRecompute(){
  for(const no of LEAVES)MH.set(no,T.get(no).mh||0);for(const t of BYLV){let m=0;for(const k of t.kids)m+=MH.get(k);MH.set(t.no,m)}
  // 날짜 다시 짜기 → 주경로
  const dur=new Map(),start=new Map();for(const [no,e] of ED){if(e.duration!=null)dur.set(no,e.duration);if(e.start)start.set(no,wnum(Date.parse(e.start)/864e5+(D.server&&T.get(no).ms?1:0)))}
- const timed=[...ED.values()].some(e=>e.preds!=null||e.duration!=null||e.start||e.fix_relax);
- const val=timed?(D.server?forwardJS(BASE.val,EDG,dur,start):reschedule(BASE.val,EDG,dur,start)):BASE.val;SCH=timed?schedule(val,EDG,BASE.excl):SCH0;
+ const sh=SHIFT?shiftPlan(SHIFT.no,SHIFT.days,start):null,timed=!!sh||[...ED.values()].some(e=>e.preds!=null||e.duration!=null||e.start||e.fix_relax);
+ const val=sh&&sh.val?sh.val:timed?(D.server?forwardJS(BASE.val,EDG,dur,start):reschedule(BASE.val,EDG,dur,start)):BASE.val;SCH=timed?schedule(val,EDG,BASE.excl):SCH0;
+ if(sh)SHIFT.res={n:sh.L.length,held:sh.L.filter(x=>SHIFT.days>0?sh.tg.get(x)-val.get(2*x)>1e-6:val.get(2*x)-sh.tg.get(x)>1e-6).length};   // 목표만큼 못 간 업무
  MOVED={};for(const t of T.values()){t.st=t.st0;t.fi=t.fi0;const k=2*t.no;if(!val.has(k)||!BASE.val.has(k))continue;
   if(Math.abs(val.get(k)-BASE.val.get(k))<1e-9&&Math.abs(val.get(k+1)-BASE.val.get(k+1))<1e-9)continue;
   if(t.kids.length){const o=SPAN0.get(t.no);if(!o||o[0]!==t.st0||o[1]!==t.fi0)continue}   // C11: 엑셀 요약 날짜를 손으로 잡은 것 — 그대로
@@ -691,7 +707,7 @@ function edRecompute(){
  SPAN.clear();sp(ROOTS);MHC=null;EMHC=null;edSave();edChip()}
 let MHB0=null;(()=>{const below=new Map();const post=no=>{const t=T.get(no);let any=false,sum=0;for(const k of t.kids){post(k);const kt=T.get(k);if(below.get(k)!=null){sum+=below.get(k);any=true}else if(kt.mh){sum+=kt.mh;any=true}}if(any)below.set(no,sum)};
  ROOTS.forEach(post);MHB0=below})();
-function edChanges(){const out=[];for(const [no,e] of ED){const t=T.get(no),b={no,wbs:t.wbs};
+function edChanges(){const out=[];if(SHIFT)out.push({no:SHIFT.no||0,wbs:SHIFT.no?T.get(SHIFT.no).wbs:"",field:"shift",from:null,to:SHIFT.days});for(const [no,e] of ED){const t=T.get(no),b={no,wbs:t.wbs};
   if(e.duration!=null)out.push({...b,field:"duration",from:Math.round((BASE.val.get(2*no+1)-BASE.val.get(2*no))*1000)/1000,to:e.duration});
   if(e.start)out.push({...b,field:"start",from:t.st0,to:e.start});
   if(e.preds!=null)out.push({...b,field:"preds",from:(DEPS0.get(no)||[]).map(d=>d.p+d.label).join(","),to:e.preds});
@@ -704,24 +720,43 @@ function predsMap(txt,f){return String(txt).split(/[,;]/).map(x=>x.trim()).filte
 function edSave(){try{if(!ED.size){localStorage.removeItem(EDKEY);return}
  const v=D.server?{u:1,items:[...ED].map(([no,e])=>[UID.get(no),e.preds!==undefined?{...e,preds:predsMap(e.preds,n=>UID.has(n)?"u"+UID.get(n):null)}:e])}:[...ED];
  localStorage.setItem(EDKEY,JSON.stringify(v))}catch(e){}}
-function edChip(){const c=$("edChip");if(!ED.size){c.style.display="none";return}const d=Math.round(SCH.end-SCH0.end);
- c.style.display="";c.textContent=`✎ 가정 편집 ${ED.size}업무 · 완료 ${fDate(SCH.end)} (${d>0?"+":""}${d} 평일)`+(EDLOAD?" · 지난번 것 불러옴":"")}
-$("edChip").onclick=()=>document.querySelector('nav button[data-t="cp"]').click();
+function shiftName(no){return no==null?"전체 사업":`${T.get(no).wbs} ${T.get(no).name}`}
+function refreshTab(){const t=document.querySelector("nav button.on").dataset.t;if(t==="gr"){keepView=true;draw()}else if(t==="mh")renderMH();else if(t==="cp")renderCP()}
+// 저장 막대 — 저장 안 한 가정 편집·일정 옮기기가 있으면 탭 줄 아래에 늘 보인다 (저장·되돌리기를 ④ 탭까지 가지 않고)
+function edChip(){const bar=$("pend");if(!ED.size&&!SHIFT){bar.style.display="none";return}
+ const d=Math.round(SCH.end-SCH0.end),parts=[];
+ if(SHIFT)parts.push(`⇄ 일정 옮기기 — ${shiftName(SHIFT.no)} ${SHIFT.days>0?"+":""}${SHIFT.days} 평일`+(SHIFT.res&&SHIFT.res.held?` (선행에 묶여 덜 움직인 업무 ${SHIFT.res.held})`:""));
+ if(ED.size)parts.push(`✎ 가정 편집 ${ED.size}업무`);
+ $("edChip").textContent=parts.join(" + ")+` · 날짜 바뀐 업무 ${Object.keys(MOVED).length.toLocaleString()} · 사업 완료 ${fDate(SCH0.end)} → ${fDate(SCH.end)} (${d>0?"+":""}${d} 평일)`+(EDLOAD?" · 지난번 것 불러옴":"");
+ bar.style.display="flex";const sv=$("pendSave"),msg=$("pendMsg");$("pendDown").style.display=D.server?"none":"";sv.style.display=D.server?"":"none";sv.disabled=false;msg.textContent="— 아직 저장 안 됨 (미리 보기)";
+ if(D.server){let why="";if(SRV.role.kind==="viewer")why="조회자는 저장할 수 없음 (미리 보기만)";else if(SRV.locked())why="편집이 닫혀 있어 저장할 수 없음";
+  else if(SHIFT&&ED.size)why="일정 옮기기와 가정 편집은 따로 저장 — 하나를 되돌린 뒤";else if(SHIFT&&!SRV.canShift(SHIFT.no))why=SHIFT.no==null?"전체 옮기기는 관리자만 저장":"내 모듈이 아니라 미리 보기만";
+  else{const no=[...ED.keys()].filter(n=>!SRV.can(n));if(no.length)why=`내 모듈이 아닌 업무 ${no.length}개 — 되돌린 뒤 저장`}
+  if(why){sv.disabled=true;msg.innerHTML=`<span class="err">— ${esc(why)}</span>`}}}
+$("pendView").onclick=()=>document.querySelector('nav button[data-t="cp"]').click();$("pendDown").onclick=()=>edDownload();
+$("pendSave").onclick=()=>{const b=$("pendSave"),m=$("pendMsg");if(SHIFT)SRV.shiftSave(b,m);else SRV.save(b,m)};
+$("pendUndo").onclick=()=>{if(!confirm("저장 안 한 가정 편집·일정 옮기기를 모두 되돌릴까요?"))return;EDLOAD=0;SHIFT=null;ED.clear();edRecompute();SHDLG.sync();refreshTab()};
+// 상세 패널의 접는 묶음 (고치기·줄 편집·수정 요청·이력) — 펴고 접은 것은 이 브라우저에 기억
+const SECKEY="engenius-wbs-sec";let SECS={};try{SECS=JSON.parse(localStorage.getItem(SECKEY)||"{}")||{}}catch(e){}
+function sec(k,html,open){const m=/^\s*<h3>([\s\S]*?)<\/h3>([\s\S]*)$/.exec(html||"");if(!m)return html||"";const o=k in SECS?SECS[k]:open;return `<details class="sec" data-k="${k}"${o?" open":""}><summary>${m[1]}</summary>${m[2]}</details>`}
 function edForm(no){const t=T.get(no),e=ED.get(no)||{},leaf=!t.kids.length,d0=BASE.val.has(2*no)?Math.round((BASE.val.get(2*no+1)-BASE.val.get(2*no))*1000)/1000:null;
- let h=`<h3>✎ 가정 편집 <span class="mut">${ED.has(no)?"고침":""}</span></h3><table class="ed">`;
+ let h=`<h3>✎ 고치기 <span class="mut">가정 편집${ED.has(no)?" · 고침":""}</span></h3><table class="ed">`;
  if(leaf)h+=`<tr><td>기간</td><td><input type="number" id="edDur" min="0" step="1" value="${e.duration??d0??""}"> 평일 <span class="mut">원래 ${d0??"-"}</span></td></tr>
   <tr><td>시작</td><td><input type="date" id="edSt" value="${e.start||""}"> 이후 <span class="mut">비우면 선행을 따름</span></td></tr>`;
  h+=`<tr><td>선행</td><td><input type="text" id="edPre" value="${esc(depsText(no))}" title="MS Project 표기 — 12,15SS+5일,20FF"> <button class="eb" data-pick="edPre" title="이름·WBS 코드·번호로 찾아 넣기">고르기</button><div id="pick_edPre"></div></td></tr><tr><td>이름</td><td><input type="text" id="edNm" value="${esc(e.name??t.name0)}"></td></tr>`;
  if(leaf)h+=`<tr><td>Man Hours</td><td><input type="number" id="edMh" min="0" value="${e.man_hours!==undefined?(e.man_hours??""):(t.mh0??"")}"></td></tr>`;
- h+=`</table><button class="eb pri" id="edApply">적용 → 다시 계산</button>${ED.has(no)?'<button class="eb" id="edUndo">이 업무 되돌리기</button>':""}<div id="edMsg" class="mut" style="font-size:12px">${D.server?(SRV.can(no)?"적용하면 미리 보기 — ④ 주경로 탭에서 '서버에 저장'":SRV.mine(no)?"편집이 닫혀 있어 미리 보기만 (관리자만 저장)":"내 모듈이 아니라 미리 보기만 (저장 불가 — 아래 ‘수정 요청’)"):"날짜는 '간격 유지' 규칙으로 다시 짬 — ④ 주경로 탭에서 변경 목록 내려받기"}</div>`+
+ h+=`</table><button class="eb pri" id="edApply">적용 → 다시 계산</button>${ED.has(no)?'<button class="eb" id="edUndo">이 업무 되돌리기</button>':""}<div id="edMsg" class="mut" style="font-size:12px">${D.server?(SRV.can(no)?"적용하면 미리 보기 — 화면 위 저장 막대에서 ‘서버에 저장’":SRV.mine(no)?"편집이 닫혀 있어 미리 보기만 (관리자만 저장)":"내 모듈이 아니라 미리 보기만 (저장 불가 — 아래 ‘수정 요청’)"):"날짜는 '간격 유지' 규칙으로 다시 짬 — 화면 위 저장 막대에서 변경 목록 내려받기"}</div>`+
  (D.server&&RLXIN.get(no)?`<div class="edbox" style="font-size:12px">느슨함 <b>${fmtD(RLXIN.get(no))} 평일</b> — 들여올 때 이미 선행을 그만큼 어겨 있어 그대로 둔 것 (C05).
-  <button class="eb" id="edRelax">${e.fix_relax?"바로잡기 취소":"바로잡기 → 선행을 따르게"}</button></div>`:"")+ROWS.box(no)+
- (D.server?(window.COLLAB?COLLAB.taskBox(no):"")+`<h3>이 업무 이력</h3><div id="taskHist" class="mut" style="font-size:12px">불러오는 중…</div>`:"");return h}
+  <button class="eb" id="edRelax">${e.fix_relax?"바로잡기 취소":"바로잡기 → 선행을 따르게"}</button></div>`:"")+
+ (BASE.val.has(2*no)?`<div style="margin-top:8px;font-size:12px"><span class="lnk" id="edShift" title="기간·선행은 그대로 두고 평일 수만큼 통째로 늦추거나 당기기">⇄ 이 ${leaf?"업무":"묶음"} 일정 옮기기</span></div>`:"");
+ return sec("ed",h,true)+sec("rows",ROWS.box(no),false)+(D.server?sec("req",window.COLLAB?COLLAB.taskBox(no):"",false)+sec("hist",`<h3>이 업무 이력</h3><div id="taskHist" class="mut" style="font-size:12px">불러오는 중…</div>`,false):"")}
 function bindEdForm(no){PICK.bind($("side"));ROWS.bind(no);
- const rx=$("edRelax");if(rx)rx.onclick=()=>{const e={...(ED.get(no)||{})};if(e.fix_relax)delete e.fix_relax;else e.fix_relax=true;EDLOAD=0;if(Object.keys(e).length)ED.set(no,e);else ED.delete(no);edRecompute();keepView=true;draw()};
+ $("side").querySelectorAll("details.sec").forEach(d=>d.ontoggle=()=>{SECS[d.dataset.k]=d.open?1:0;try{localStorage.setItem(SECKEY,JSON.stringify(SECS))}catch(e){}});
+ const sf=$("edShift");if(sf)sf.onclick=()=>SHDLG.open(no);const busy=()=>{if(!(D.server&&SHIFT))return false;$("edMsg").innerHTML=`<span class="err">일정 옮기기 미리 보기 중입니다 — 위 저장 막대에서 저장하거나 되돌린 뒤 고치세요</span>`;return true};
+ const rx=$("edRelax");if(rx)rx.onclick=()=>{if(busy())return;const e={...(ED.get(no)||{})};if(e.fix_relax)delete e.fix_relax;else e.fix_relax=true;EDLOAD=0;if(Object.keys(e).length)ED.set(no,e);else ED.delete(no);edRecompute();keepView=true;draw()};
  if(D.server){SRV.taskHist(no);if(window.COLLAB)COLLAB.bindTask(no)}
  const ap=$("edApply");if(!ap)return;const t=T.get(no),leaf=!t.kids.length;
- ap.onclick=()=>{const e={},msg=$("edMsg"),err=m=>{msg.innerHTML=`<span class="err">${esc(m)}</span>`};
+ ap.onclick=()=>{if(busy())return;const e={},msg=$("edMsg"),err=m=>{msg.innerHTML=`<span class="err">${esc(m)}</span>`};
   if(leaf){const dv=$("edDur").value.trim(),d0=Math.round((BASE.val.get(2*no+1)-BASE.val.get(2*no))*1000)/1000;if(dv!==""){const d=+dv;if(!(d>=0))return err("기간은 0 이상 숫자");if(BASE.val.has(2*no)&&Math.abs(d-d0)>1e-9)e.duration=d;else if(!BASE.val.has(2*no))return err("날짜가 없는 업무는 기간을 다시 짤 수 없음")}
    const sv=$("edSt").value;if(sv)e.start=sv;const mv=$("edMh").value.trim(),m=mv===""?null:+mv;if(mv!==""&&!(m>=0))return err("Man Hours 는 0 이상 숫자");if(m!==(t.mh0??null))e.man_hours=m}
   const pt=$("edPre").value.trim(),pr=parseDeps(pt);if(pr.bad.length)return err("선행 표기를 읽지 못함: "+pr.bad.join(", "));
@@ -730,19 +765,60 @@ function bindEdForm(no){PICK.bind($("side"));ROWS.bind(no);
   const nm=$("edNm").value.trim();if(nm&&nm!==t.name0)e.name=nm;if(ED.get(no)?.fix_relax)e.fix_relax=true;
   EDLOAD=0;if(Object.keys(e).length)ED.set(no,e);else ED.delete(no);edRecompute();keepView=true;draw()};
  const un=$("edUndo");if(un)un.onclick=()=>{EDLOAD=0;ED.delete(no);edRecompute();keepView=true;draw()}}
-function edBox(){if(!ED.size)return `<div class="mut" style="font-size:12px;margin-bottom:8px">✎ 가정 편집 — 간트에서 하위 업무를 고르고 ‘오른쪽 업무 상세’ 를 켜서 기간·시작·선행을 바꾸면 날짜와 주경로를 바로 다시 계산합니다.</div>`+(D.server?SRV.histBox():"");
- const d=Math.round(SCH.end-SCH0.end),ch=edChanges(),lab={duration:"기간",start:"시작",preds:"선행",name:"이름",man_hours:"MH",staff:"투입인력",fix_relax:"느슨함"};
- let h=`<div class="edbox"><b>✎ 가정 편집 ${ED.size}업무</b><div style="font-size:12px">사업 완료 ${fDate(SCH0.end)} → <b>${fDate(SCH.end)}</b> (${d>0?"+":""}${d} 평일) · 날짜 바뀐 업무 ${Object.keys(MOVED).length.toLocaleString()}</div>`;
- for(const [no] of ED){const xs=ch.filter(c=>c.no===no).map(c=>`${lab[c.field]} ${c.from??"-"}→${c.to??"-"}`).join(" · ");h+=`<div class="it"><span class="lnk" data-n="${no}">${no}</span><span>${esc(T.get(no).name)}: ${esc(xs)}</span><span class="x" data-x="${no}" title="되돌리기">✕</span></div>`}
- return h+(D.server?SRV.saveBox():"")+`<button class="pri" id="edDown" title="apply.bat 에 원본 엑셀과 함께 끌어다 놓으면 원본 형식 그대로 새 판 엑셀">변경 목록 내려받기 (.json)</button><button id="edClear">모두 되돌리기</button></div>`+(D.server?SRV.histBox():"")}
+function edBox(){if(!ED.size&&!SHIFT)return `<div class="mut" style="font-size:12px;margin-bottom:8px">✎ 가정 편집 — 간트에서 업무를 고르고 아래 줄의 ‘상세·고치기’ 로 기간·시작·선행을 바꾸거나, ‘⇄ 일정 옮기기’ 로 전체·묶음을 통째로 옮기면 날짜와 주경로를 바로 다시 계산합니다.</div>`+(D.server?SRV.histBox():"");
+ const d=Math.round(SCH.end-SCH0.end),ch=edChanges(),lab={duration:"기간",start:"시작",preds:"선행",name:"이름",man_hours:"MH",staff:"투입인력",fix_relax:"느슨함",shift:"일정 옮기기"};
+ let h=`<div class="edbox"><b>${SHIFT?"⇄ 일정 옮기기"+(ED.size?" + ":""):""}${ED.size?`✎ 가정 편집 ${ED.size}업무`:""}</b><div style="font-size:12px">사업 완료 ${fDate(SCH0.end)} → <b>${fDate(SCH.end)}</b> (${d>0?"+":""}${d} 평일) · 날짜 바뀐 업무 ${Object.keys(MOVED).length.toLocaleString()}</div>`;
+ if(SHIFT)h+=`<div class="it"><span>⇄ ${esc(shiftName(SHIFT.no))} ${SHIFT.days>0?"+":""}${SHIFT.days} 평일 · 하위 업무 ${((SHIFT.res||{}).n??0).toLocaleString()}${SHIFT.res&&SHIFT.res.held?` · 선행에 묶여 덜 움직인 업무 ${SHIFT.res.held}`:""}</span><span class="x" id="shX" title="되돌리기">✕</span></div>`;
+ for(const [no] of ED){const xs=ch.filter(c=>c.no===no&&c.field!=="shift").map(c=>`${lab[c.field]} ${c.from??"-"}→${c.to??"-"}`).join(" · ");h+=`<div class="it"><span class="lnk" data-n="${no}">${no}</span><span>${esc(T.get(no).name)}: ${esc(xs)}</span><span class="x" data-x="${no}" title="되돌리기">✕</span></div>`}
+ return h+(D.server?(SHIFT?`<div class="mut" style="font-size:12px;margin:6px 0">일정 옮기기는 화면 위 저장 막대에서 저장·되돌리기</div>`:SRV.saveBox()):"")+`<button class="pri" id="edDown" title="apply.bat 에 원본 엑셀과 함께 끌어다 놓으면 원본 형식 그대로 새 판 엑셀">변경 목록 내려받기 (.json)</button><button id="edClear">모두 되돌리기</button></div>`+(D.server?SRV.histBox():"")}
 function bindEdBox(){const el=$("cpGrp");el.querySelectorAll(".edbox .x").forEach(x=>x.onclick=()=>{EDLOAD=0;ED.delete(+x.dataset.x);edRecompute();renderCP()});
  el.querySelectorAll(".edbox .lnk").forEach(x=>x.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+x.dataset.n)});
- if(D.server)SRV.bind();const dn=$("edDown");if(dn)dn.onclick=edDownload;const cl=$("edClear");if(cl)cl.onclick=()=>{if(!confirm("가정 편집을 모두 되돌릴까요?"))return;EDLOAD=0;ED.clear();edRecompute();renderCP()}}
+ if(D.server)SRV.bind();const dn=$("edDown");if(dn)dn.onclick=edDownload;const cl=$("edClear");if(cl)cl.onclick=()=>{if(!confirm("가정 편집·일정 옮기기를 모두 되돌릴까요?"))return;EDLOAD=0;SHIFT=null;ED.clear();edRecompute();SHDLG.sync();renderCP()};
+ const sx=$("shX");if(sx)sx.onclick=()=>{SHIFT=null;edRecompute();SHDLG.sync();renderCP()}}
 function edDownload(){const now=new Date(),p=n=>String(n).padStart(2,"0"),stamp=`${now.getFullYear()}${p(now.getMonth()+1)}${p(now.getDate())}_${p(now.getHours())}${p(now.getMinutes())}`;
  const body={format:"engenius-wbs-changes/1",source:D.source,sheet:D.sheet,sha256:D.sha256,created:now.toISOString().slice(0,19),rule:"간격 유지 v1",
   changes:edChanges(),result:{end_before:fDate(SCH0.end),end:fDate(SCH.end),moved:MOVED}};
  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(body,null,1)],{type:"application/json"}));a.download=`${D.source.replace(/\.xlsx$/i,"")}_변경_${stamp}.json`;
  document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+// ---- v0.6 일정 옮기기 (쉬프트) — 범위(전체 · 업무 하나 아래)를 n 평일 통째로. 파이썬 schedule.shift_floors (서버) · apply.py (파일) 와 같은 규칙 ----
+// 서버: 시작 하한만 옮김 → forwardJS. 늦추기 = 범위 안 전부 정확히 n · 당기기 = 하한을 n 당김(범위 밖 선행에 묶이면 거기까지). 파일: '이 날 이후' 로 풀어 reschedule.
+const E0=new Map();
+function shiftScope(no){const L=[],bare=[],st=no==null?ROOTS.slice():[no];while(st.length){const x=st.pop(),t=T.get(x);if(!t.kids.length){if(BASE.val.has(2*x))L.push(x);continue}
+  if(BASE.val.has(2*x)&&!t.kids.some(c=>BASE.val.has(2*c)))bare.push(x);st.push(...t.kids)}return{L,bare}}
+function shiftPlan(no,n,start){const {L,bare}=shiftScope(no),tg=new Map(L.map(x=>[x,BASE.val.get(2*x)+n]));
+ if(!D.server){for(const [x,v] of tg)if(!start.has(x))start.set(x,v);return{L,tg,val:null}}
+ let v0=BASE.val;if(bare.length){v0=new Map(BASE.val);for(const x of bare){v0.set(2*x,BASE.val.get(2*x)+n);v0.set(2*x+1,BASE.val.get(2*x+1)+n)}}   // 날짜 있는 하위 업무가 없는 요약 — 적힌 날짜를 그대로 옮김
+ let FL;if(n>0){FL=new Map(FL0);for(const [x,v] of tg)FL.set(x,v)}   // 결과 날짜는 하한을 어떻게 남기든 같다 (범위 안 = 정확히 n)
+ else{const need0=new Map();forwardJS(BASE.val,EDG,E0,E0,new Map(FL0),need0);FL=new Map(FL0);for(const x of L){if(FL0.has(x))FL.set(x,FL0.get(x)+n);else if(!need0.has(x))FL.set(x,tg.get(x))}}
+ return{L,tg,val:forwardJS(v0,EDG,E0,E0,FL,null)}}
+const SHDLG={no:null,
+ shown(){return $("shiftDlg").style.display==="block"},
+ open(no){this.no=SHIFT&&SHIFT.no!=null?SHIFT.no:(no!==undefined?no:S.sel);this.render();$("shiftDlg").style.display="block"},
+ close(){$("shiftDlg").style.display="none"},
+ sync(){if(this.shown())this.render()},
+ info(no){const L=shiftScope(no).L;let s=null;for(const x of L){const d=T.get(x).st0;if(d&&(!s||d<s))s=d}return{n:L.length,start:s}},
+ render(){const el=$("shiftDlg"),all=this.info(null),sel=this.no!=null&&T.has(this.no)?this.info(this.no):null,ok=sel&&sel.n>0,useSel=ok&&(!SHIFT||SHIFT.no!=null);
+  el.innerHTML=`<div class="hd"><b>⇄ 일정 옮기기</b><span class="x" id="shClose" title="닫기">✕</span></div>
+  <div class="k">무엇을</div>
+  <label><input type="radio" name="shScope" value="all"${useSel?"":" checked"}> 전체 사업 <span class="mut">하위 업무 ${all.n.toLocaleString()} · 시작 ${all.start||"-"}</span></label>
+  <label${ok?"":' class="off"'}><input type="radio" name="shScope" value="sel"${useSel?" checked":""}${ok?"":" disabled"}> ${ok?`고른 것만: <b>${esc(shiftName(this.no))}</b> <span class="mut">Lv${T.get(this.no).lv} · 하위 업무 ${sel.n.toLocaleString()} · 시작 ${sel.start||"-"}</span>`:`고른 것만 <span class="mut">— 간트에서 행(묶음)을 먼저 고르세요</span>`}</label>
+  <div class="k">얼마나</div>
+  <div class="r"><input type="number" id="shDays" step="1" value="${SHIFT?SHIFT.days:""}" placeholder="예: 20"> 평일 <span class="mut">＋ 늦추기 · − 당기기 (주말은 세지 않음)</span></div>
+  <div class="r"><span class="mut">또는 새 시작일</span> <input type="date" id="shDate"> <span class="mut">→ 평일 수로 바꿔 넣음</span></div>
+  <div class="r"><button class="pri" id="shGo">미리 보기</button><button id="shOff"${SHIFT?"":" disabled"}>되돌리기</button></div>
+  <div id="shMsg"></div>
+  <div class="mut nt">범위 안 업무는 모두 같은 평일 수만큼 움직이고 기간·선행은 그대로입니다. 범위 밖 후속은 선행을 따라 움직입니다. 당길 때 범위 밖 선행에 묶인 업무는 그 선행이 허락하는 데까지만 당겨집니다. 미리 보기는 이 화면에서만 — 화면 위 저장 막대에서 저장해야 반영됩니다.</div>`;
+  const scope=()=>el.querySelector('input[name="shScope"]:checked').value==="sel"?this.no:null,err=m=>{$("shMsg").innerHTML=`<span class="err">${esc(m)}</span>`};
+  $("shClose").onclick=()=>this.close();
+  $("shDate").onchange=()=>{const v=$("shDate").value,s0=this.info(scope()).start;if(!v||!s0)return;$("shDays").value=wnum(Date.parse(v)/864e5)-wnum(Date.parse(s0)/864e5)};
+  $("shGo").onclick=()=>{const n=+$("shDays").value;if(!Number.isInteger(n)||!n||Math.abs(n)>5000)return err("옮길 평일 수를 0 이 아닌 정수로 (예: 20, -10)");
+   if(D.server&&ED.size)return err(`저장 안 한 가정 편집 ${ED.size}업무가 있습니다 — 먼저 저장하거나 되돌린 뒤 (일정 옮기기는 따로 저장됩니다)`);
+   EDLOAD=0;SHIFT={no:scope(),days:n};edRecompute();refreshTab();this.render()};
+  $("shOff").onclick=()=>{SHIFT=null;edRecompute();refreshTab();this.render()};
+  if(SHIFT&&SHIFT.res){const r=SHIFT.res,d=Math.round(SCH.end-SCH0.end);$("shMsg").innerHTML=`<b>${esc(shiftName(SHIFT.no))} ${SHIFT.days>0?"+":""}${SHIFT.days} 평일</b> — 하위 업무 ${(r.n-r.held).toLocaleString()}${r.held?` / ${r.n.toLocaleString()}`:""} 옮김 · 날짜 바뀐 업무 ${Object.keys(MOVED).length.toLocaleString()} · 사업 완료 ${fDate(SCH0.end)} → <b>${fDate(SCH.end)}</b> (${d>0?"+":""}${d} 평일)`+
+   (r.held?`<br><span class="err">선행에 묶여 덜 움직인 업무 ${r.held}</span>`:"")+`<br><span class="mut">간트의 파란 날짜 = 옮겨진 것 · 화면 위 저장 막대에서 저장·되돌리기</span>`}}};
+$("shiftBtn").onclick=()=>SHDLG.shown()?SHDLG.close():SHDLG.open();
+document.addEventListener("keydown",ev=>{if(ev.key!=="Escape")return;document.querySelectorAll("details.menu[open]").forEach(d=>d.open=false);if(SHDLG.shown())SHDLG.close()});
 // ---- v0.5 서버: 저장 · 권한 · 이력 ----
 const SRV={role:window.__WBS_ROLE__||{kind:"viewer",module_uid:null},hist:null,
  lv1(no){let t=T.get(no);while(t.par!=null&&T.has(t.par))t=T.get(t.par);return t.no},
@@ -755,7 +831,14 @@ const SRV={role:window.__WBS_ROLE__||{kind:"viewer",module_uid:null},hist:null,
   const no=[...ED.keys()].filter(n=>!this.can(n));
   return `<div style="margin:6px 0"><button class="pri" id="srvSave"${no.length?" disabled":""}>서버에 저장 (${ED.size}업무)</button> <span id="srvMsg" class="mut" style="font-size:12px">${no.length?`<span class="err">내 모듈이 아닌 업무 ${no.length}개 (${no.slice(0,5).join(", ")}${no.length>5?" …":""}) — 되돌린 뒤 저장</span>`:"저장하면 모든 사람 화면에 반영 · 이력에 역할 이름으로 남음"}</span></div>`},
  histBox(){return `<div class="edbox" id="srvHist"><b>최근 저장</b> <span class="mut" style="font-size:12px">불러오는 중…</span></div>`},
- async save(){const b=$("srvSave"),m=$("srvMsg");b.disabled=true;m.textContent="저장 중…";
+ canShift(no){const r=this.role;if(this.locked())return false;if(r.kind==="admin")return true;return r.kind==="leader"&&no!=null&&UID.get(this.lv1(no))===r.module_uid},
+ async shiftSave(b,m){b.disabled=true;m.textContent="저장 중…";
+  try{const r=await fetch("api/shift",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({base_rev:D.server.rev,uid:SHIFT.no==null?null:UID.get(SHIFT.no),days:SHIFT.days})});
+   const j=await r.json().catch(()=>({error:"서버 응답을 읽지 못함"}));
+   if(r.ok){m.textContent=`저장됨 (판 #${j.rev}) · 날짜 바뀐 업무 ${j.moved} · 사업 완료 ${j.end_before} → ${j.end_after} — 새로 불러옴`;SHIFT=null;setTimeout(()=>location.reload(),700);return}
+   m.innerHTML=`<span class="err">${esc(j.error||("저장 실패 "+r.status))}</span>`+(r.status===409?" — 새로 고침 뒤 다시":"");b.disabled=false}
+  catch(e){m.innerHTML=`<span class="err">서버에 닿지 못함</span>`;b.disabled=false}},
+ async save(b,m){b=b||$("srvSave");m=m||$("srvMsg");b.disabled=true;m.textContent="저장 중…";
   try{const r=await fetch("api/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({base_rev:D.server.rev,edits:this.edits()})});
    const j=await r.json().catch(()=>({error:"서버 응답을 읽지 못함"}));
    if(r.ok){ED.clear();edSave();m.textContent=`저장됨 (판 #${j.rev}) · 날짜 바뀐 업무 ${j.moved} · 사업 완료 ${j.end_before} → ${j.end_after} — 새로 불러옴`;setTimeout(()=>location.reload(),700);return}
@@ -765,9 +848,9 @@ const SRV={role:window.__WBS_ROLE__||{kind:"viewer",module_uid:null},hist:null,
  async loadHist(){const el=$("srvHist");if(!el)return;try{if(!this.hist){const r=await fetch("api/history?limit=30",{cache:"no-store"});this.hist=r.ok?await r.json():[]}}catch(e){this.hist=[]}
   const h=this.hist;let s=`<b>최근 저장</b>`;if(!h.length)s+=` <span class="mut" style="font-size:12px">아직 없음</span>`;
   for(const x of h){const n=x.note||{};s+=`<div class="it" style="display:block"><span class="mut">#${x.txn} ${esc(x.at.replace("T"," "))} · ${esc(x.role)}</span>`+
-   (x.kind==="snapshot"?` <b>판 확정 ‘${esc(n.label||"")}’</b>`:x.kind==="lock"?` <b>${n.open?"편집 열음":"편집 닫음"}</b>${n.note?" "+esc(n.note):""}`:"")+(n.moved!=null?` <span class="mut">· 날짜 바뀐 업무 ${n.moved} · 완료 ${esc(n.end_before||"")} → ${esc(n.end_after||"")}</span>`:"");
-   for(const c of x.changes.slice(0,12))s+=`<div style="font-size:12px;padding-left:10px">${c.no!=null?`<span class="lnk" data-n="${c.no}">${c.no}</span> `:""}${esc(c.name)} · ${esc(c.label)} ${esc(c.old??"-")} → ${esc(c.new??"-")}</div>`;
-   if(x.changes.length>12)s+=`<div class="mut" style="font-size:12px;padding-left:10px">… 외 ${x.changes.length-12}칸</div>`;s+=`</div>`}
+   (n.shift?` <b>일정 옮기기 ${esc(n.shift.scope)} ${n.shift.days>0?"+":""}${n.shift.days} 평일</b>`:x.kind==="snapshot"?` <b>판 확정 ‘${esc(n.label||"")}’</b>`:x.kind==="lock"?` <b>${n.open?"편집 열음":"편집 닫음"}</b>${n.note?" "+esc(n.note):""}`:"")+(n.moved!=null?` <span class="mut">· 날짜 바뀐 업무 ${n.moved} · 완료 ${esc(n.end_before||"")} → ${esc(n.end_after||"")}</span>`:"");
+   const show=n.shift?3:12,nc=x.n_changes??x.changes.length;for(const c of x.changes.slice(0,show))s+=`<div style="font-size:12px;padding-left:10px">${c.no!=null?`<span class="lnk" data-n="${c.no}">${c.no}</span> `:""}${esc(c.name)} · ${esc(c.label)} ${esc(c.old??"-")} → ${esc(c.new??"-")}</div>`;
+   if(nc>show)s+=`<div class="mut" style="font-size:12px;padding-left:10px">… 외 ${(nc-show).toLocaleString()}칸</div>`;s+=`</div>`}
   el.innerHTML=s;el.querySelectorAll(".lnk").forEach(a=>a.onclick=()=>{document.querySelector('nav button[data-t="gr"]').click();goTask(+a.dataset.n)})},
  bind(){const b=$("srvSave");if(b)b.onclick=()=>this.save();this.loadHist()},
  async taskHist(no){const el=$("taskHist");if(!el)return;let h=[];try{const r=await fetch(`api/history?uid=${UID.get(no)}&limit=20`,{cache:"no-store"});h=r.ok?await r.json():[]}catch(e){}
@@ -787,7 +870,7 @@ const ROWS={
    b("delete","✕ 삭제","지움 표시 (요약이면 아래 전부) — 이력에 남음")+`</div><div id="rowArea" style="font-size:12px"></div>`},
  bind(no){document.querySelectorAll("#side .rowops [data-op]").forEach(x=>x.onclick=()=>this.start(no,x.dataset.op))},
  start(no,op){const a=$("rowArea"),t=T.get(no);
-  if(ED.size){a.innerHTML=`<span class="err">저장 안 한 가정 편집 ${ED.size}업무가 있습니다 — 줄 편집은 번호를 바꾸므로 먼저 ④ 주경로 탭에서 저장하거나 되돌리세요.</span>`;return}
+  if(ED.size||SHIFT){a.innerHTML=`<span class="err">저장 안 한 가정 편집·일정 옮기기가 있습니다 — 줄 편집은 번호를 바꾸므로 먼저 화면 위 저장 막대에서 저장하거나 되돌리세요.</span>`;return}
   const goto=(op==="delete"||op==="ungroup")?(t.par!=null?UID.get(t.par):null):UID.get(no);
   if(op==="add"||op==="child"){
    a.innerHTML=`<table class="ed"><tr><td>이름</td><td><input type="text" id="rwNm"></td></tr><tr><td>기간</td><td><input type="number" id="rwDur" min="0" step="1" value="5"> 평일 <span class="mut">0 = 마일스톤</span></td></tr>

@@ -23,7 +23,7 @@ from .parse import WEEKDAYS_KO, find_header, parse_deps, read_wbs
 from .schedule import date_schedule, event_values, finish_date, reschedule, start_date, widx
 
 FORMAT = "engenius-wbs-changes/1"
-FIELDS = ("duration", "start", "preds", "name", "man_hours", "staff")
+FIELDS = ("duration", "start", "preds", "name", "man_hours", "staff", "shift")   # shift = 일정 옮기기: no 0 = 전체, to = 평일 수 (v0.6)
 DATE_TXT = re.compile(r"^(\s*)(\d{2,4})([-./])(\d{1,2})([-./])(\d{1,2})(\s*)(\(\s*[월화수목금토일]\s*\))?(.*)$")
 DUR_TXT = re.compile(r"^(\s*<?\s*)([0-9][0-9,]*(?:\.[0-9]+)?)(\s*)([^\d\s?<>]*)(.*)$")
 DAY_UNITS = {"", "일", "d", "day", "days", "경과일"}
@@ -115,9 +115,15 @@ def apply_changes(src: Path, changes: Path, cfg: dict, out_dir: Path | None = No
     val0, _ = event_values(tasks)
     units = {nfkc(k).lower(): float(v) for k, v in cfg["unit_days"].items()}
     dur, start, edited = {}, {}, {}
+    shifts: list[tuple[int, int]] = []
     mh_old = {no: t.man_hours for no, t in tasks.items()}
     for c in ch["changes"]:
         no, f, to = c["no"], c["field"], c.get("to")
+        if f == "shift":                                           # 범위(0 = 전체)의 하위 업무를 to 평일 통째로 — 아래에서 '이 날 이후' 로 푼다
+            if (no and no not in tasks) or isinstance(to, bool) or not isinstance(to, int) or not to:
+                raise ValueError(f"일정 옮기기를 읽지 못함: {c}")
+            shifts.append((no, to))
+            continue
         if no not in tasks:
             raise ValueError(f"없는 번호 {no}")
         t = tasks[no]
@@ -143,6 +149,15 @@ def apply_changes(src: Path, changes: Path, cfg: dict, out_dir: Path | None = No
             t.man_hours = None if to in (None, "") else float(to)
         elif f == "staff":
             t.staff = None if to in (None, "") else float(to)
+    for top, n in shifts:
+        scope, stack = [], ([top] if top else [t.no for t in tasks.values() if t.parent is None])
+        while stack:
+            x = stack.pop()
+            scope.append(x)
+            stack.extend(tasks[x].children)
+        for no in scope:
+            if not tasks[no].children and 2 * no in val0 and no not in start:      # 손으로 고친 '시작' 이 먼저
+                start[no] = val0[2 * no] + n
     edges = [Edge(d.pred, t.no, d.type, d.lag_days, d.lag_text) for t in tasks.values() for d in t.deps
              if d.pred in tasks and d.pred != t.no]
     orig = {(e.pred, e.succ, e.type, e.lag_days or 0.0) for e in a.edges}

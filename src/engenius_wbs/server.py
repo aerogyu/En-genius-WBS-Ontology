@@ -27,7 +27,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
-from . import auth, backup, collab, snapshot, winauth
+from . import auth, backup, bulk, collab, snapshot, winauth
 from .analyze import analyze
 from .config import load_config
 from .edit import EditError, apply_edits, history
@@ -630,6 +630,28 @@ def create_app(db_path: str | Path, cfg_path: str | Path | None = None, title: s
             return _edit_err(e)
         return _h(JSONResponse(res))
 
+    async def shift_api(request: Request):
+        """일정 옮기기 (v0.6) — 범위(uid 없으면 전체)를 days 평일. dry_run 이면 계산만 하고 되돌림."""
+        role, err = await need(request)
+        if err:
+            return err
+        if not request.headers.get("content-type", "").startswith("application/json"):
+            return _h(JSONResponse({"error": "JSON 으로 보낼 것"}, status_code=415))
+        try:
+            body = json.loads((await request.body())[:20_000] or b"{}")
+            base, uid, days, dry = int(body.get("base_rev", -1)), body.get("uid"), body.get("days"), bool(body.get("dry_run"))
+        except (ValueError, TypeError, AttributeError):
+            return _h(JSONResponse({"error": "요청을 읽지 못함"}, status_code=400))
+
+        def run():
+            with srv.write_lock, srv.connect() as st:
+                return bulk.shift(st, srv.cfg, role, base, uid, days, dry)
+        try:
+            res = await run_in_threadpool(run)
+        except EditError as e:
+            return _edit_err(e)
+        return _h(JSONResponse(res))
+
     async def hist(request: Request):
         _, err = await need(request)
         if err:
@@ -648,7 +670,7 @@ def create_app(db_path: str | Path, cfg_path: str | Path | None = None, title: s
     app = Starlette(routes=[
         Route("/", index), Route("/data.js", data_js), Route("/login", login, methods=["GET", "POST"]),
         Route("/logout", logout, methods=["POST"]), Route("/api/status", status), Route("/api/roles", roles),
-        Route("/export.xlsx", export), Route("/api/save", save, methods=["POST"]), Route("/api/rows", rows_op, methods=["POST"]), Route("/api/history", hist),
+        Route("/export.xlsx", export), Route("/api/save", save, methods=["POST"]), Route("/api/rows", rows_op, methods=["POST"]), Route("/api/shift", shift_api, methods=["POST"]), Route("/api/history", hist),
         Route("/api/snapshots", snapshots, methods=["GET", "POST"]), Route("/api/compare", compare_api), Route("/compare.xlsx", compare_xlsx),
         Route("/snapshot/{sid:int}.xlsx", snapshot_xlsx), Route("/report.xlsx", report_xlsx),
         Route("/api/requests", requests_api, methods=["GET", "POST"]), Route("/api/requests/{rid:int}", request_act, methods=["POST"]),

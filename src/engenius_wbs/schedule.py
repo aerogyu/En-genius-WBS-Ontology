@@ -367,3 +367,39 @@ def forward(tasks, edges, val0: dict[int, float], floor: dict[int, float], work:
         elif 2 * t.no in val0:
             val[2 * t.no], val[2 * t.no + 1] = val0[2 * t.no], val0[2 * t.no + 1]
     return val, need
+
+
+# --- v0.6 일정 옮기기 (쉬프트) ---------------------------------------------------------------------------
+# 범위(하위 업무 묶음)를 n 평일 통째로 옮긴다. 날짜를 직접 고치지 않고 '시작 하한' 만 바꾼다 — 그 뒤는 forward 가 짠다.
+#   늦추기 (n > 0): 범위 안 하위 업무는 모두 정확히 n 만큼 늦어진다. 범위 안 선행이 밀어 주는 업무는 하한을 두지 않고(계속 선행을 따름),
+#                   그렇지 않은 업무(하한에 걸려 있었거나 범위 밖 선행에 붙어 있던 것)만 새 시작을 하한으로 둔다.
+#   당기기 (n < 0): 하한을 n 만큼 당긴다. 범위 밖 선행이 붙잡고 있는 업무는 그 선행이 허락하는 데까지만 (held).
+#   범위 밖 후속은 여느 고침과 같이 선행을 따라 밀리거나(하한이 없으면) 당겨진다.
+# 화면 미리 보기(JS shiftPlan)가 같은 규칙으로 계산한다.
+
+def shift_floors(tasks, edges, val0: dict[int, float], floor: dict[int, float], work: dict[int, float],
+                 relax: list[float] | None, scope, n: float) -> tuple[dict[int, float], dict[int, float], list[int]]:
+    """scope = 옮길 하위 업무 번호들. → (새 하한 전체, 새 사건 값, 목표만큼 못 움직인 하위 업무)."""
+    leaves = [no for no in scope if 2 * no in val0 and not tasks[no].children]
+    target = {no: val0[2 * no] + n for no in leaves}
+    new = dict(floor)
+    if n > 0:
+        trial = dict(floor)
+        trial.update(target)
+        val, need = forward(tasks, edges, val0, trial, work, relax)
+        for no in leaves:
+            if need.get(no, -math.inf) >= target[no] - EPS:      # 범위 안 선행이 그만큼 밀어 줌 — 하한은 그대로 n 만큼만
+                if no in floor:
+                    new[no] = floor[no] + n
+            else:
+                new[no] = target[no]
+    else:
+        _, need0 = forward(tasks, edges, val0, floor, work, relax)
+        for no in leaves:
+            if no in floor:
+                new[no] = floor[no] + n
+            elif no not in need0:                                # 하한도 요구도 없어 저장된 날짜에 머물던 업무
+                new[no] = target[no]
+        val, _ = forward(tasks, edges, val0, new, work, relax)
+    held = sorted(no for no in leaves if (target[no] - val[2 * no] if n > 0 else val[2 * no] - target[no]) > EPS)   # 목표만큼 못 간 업무
+    return new, val, held
